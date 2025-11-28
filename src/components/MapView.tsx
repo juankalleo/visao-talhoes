@@ -34,6 +34,18 @@ export default function MapView({
   const marker = useRef<maplibregl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
+  // Refs to avoid stale closures in map event handlers
+  const isDrawingRef = useRef(isDrawingPlot);
+  const plotPointsRef = useRef(plotPoints);
+  const onPlotPointsChangeRef = useRef(onPlotPointsChange);
+  const onLocationChangeRef = useRef(onLocationChange);
+  const plotMarkersRef = useRef<maplibregl.Marker[]>([]);
+
+  useEffect(() => { isDrawingRef.current = isDrawingPlot; }, [isDrawingPlot]);
+  useEffect(() => { plotPointsRef.current = plotPoints; }, [plotPoints]);
+  useEffect(() => { onPlotPointsChangeRef.current = onPlotPointsChange; }, [onPlotPointsChange]);
+  useEffect(() => { onLocationChangeRef.current = onLocationChange; }, [onLocationChange]);
+
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -95,21 +107,20 @@ export default function MapView({
 
     map.current.on('load', () => {
       setMapLoaded(true);
-      if (onLocationChange) {
-        onLocationChange(initialLat, initialLon);
+      if (onLocationChangeRef.current) {
+        onLocationChangeRef.current(initialLat, initialLon);
       }
     });
 
-    // Click to set location or add plot point
+    // Click to set location or add plot point (reads current refs to avoid stale values)
     map.current.on('click', (e) => {
       const { lng, lat } = e.lngLat;
-      
-      if (isDrawingPlot && onPlotPointsChange) {
-        // Add point to plot
-        const newPoints = [...plotPoints, [lng, lat] as [number, number]];
-        onPlotPointsChange(newPoints);
-      } else if (onLocationChange) {
-        onLocationChange(lat, lng);
+      if (isDrawingRef.current && onPlotPointsChangeRef.current) {
+        const current = plotPointsRef.current ?? [];
+        const newPoints = [...current, [lng, lat] as [number, number]];
+        onPlotPointsChangeRef.current(newPoints);
+      } else if (onLocationChangeRef.current) {
+        onLocationChangeRef.current(lat, lng);
       }
     });
 
@@ -122,7 +133,7 @@ export default function MapView({
         map.current = null;
       }
     };
-  }, [onLocationChange]);
+  }, []); // run once
 
   // Update marker
   useEffect(() => {
@@ -267,12 +278,12 @@ export default function MapView({
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
 
-    // Remove existing markers
-    const existingMarkers = document.querySelectorAll('.plot-marker');
-    existingMarkers.forEach(marker => marker.remove());
+    // Remove previous markers created by us
+    plotMarkersRef.current.forEach(m => m.remove());
+    plotMarkersRef.current = [];
 
     // Add markers for each point
-    plotPoints.forEach((point, index) => {
+    plotPoints.forEach((point) => {
       const el = document.createElement('div');
       el.className = 'plot-marker';
       el.style.cssText = `
@@ -286,9 +297,10 @@ export default function MapView({
         z-index: 1000;
       `;
       
-      new maplibregl.Marker({ element: el })
+      const m = new maplibregl.Marker({ element: el })
         .setLngLat(point)
         .addTo(map.current!);
+      plotMarkersRef.current.push(m);
     });
   }, [plotPoints, mapLoaded]);
 
@@ -375,6 +387,118 @@ export default function MapView({
       if (map.current?.getSource(sourceId)) {
         map.current.removeSource(sourceId);
       }
+    };
+  }, [plotPoints, savedPlot, weather, mapLoaded]);
+
+  // Image overlay (raster) generated from polygon (optional)
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const imageSourceId = 'plot-image-source';
+    const imageLayerId = 'plot-image-layer';
+
+    // remove existing
+    if (map.current.getLayer(imageLayerId)) map.current.removeLayer(imageLayerId);
+    if (map.current.getSource(imageSourceId)) map.current.removeSource(imageSourceId);
+
+    const pointsToUse = savedPlot && savedPlot.length >= 3
+      ? savedPlot
+      : (plotPoints.length >= 3 ? plotPoints : null);
+
+    if (!pointsToUse) return;
+
+    // bbox with small padding
+    const lons = pointsToUse.map(p => p[0]);
+    const lats = pointsToUse.map(p => p[1]);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const lonPad = (maxLon - minLon) * 0.12 || 0.0005;
+    const latPad = (maxLat - minLat) * 0.12 || 0.0005;
+    const bbox = [minLon - lonPad, minLat - latPad, maxLon + lonPad, maxLat + latPad]; // [minLon,minLat,maxLon,maxLat]
+
+    // canvas size (keep reasonable)
+    const canvasWidth = 512;
+    const bboxLonSpan = bbox[2] - bbox[0];
+    const bboxLatSpan = bbox[3] - bbox[1];
+    const aspect = bboxLatSpan > 0 ? (bboxLatSpan / bboxLonSpan) : 1;
+    const canvasHeight = Math.max(128, Math.round(canvasWidth * aspect));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // clear and draw transparent background
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // helper: lon/lat -> canvas coords
+    const lonToX = (lon: number) => ((lon - bbox[0]) / (bbox[2] - bbox[0])) * canvasWidth;
+    const latToY = (lat: number) => canvasHeight - ((lat - bbox[1]) / (bbox[3] - bbox[1])) * canvasHeight;
+
+    // draw filled polygon (translucent)
+    ctx.beginPath();
+    pointsToUse.forEach((pt, i) => {
+      const x = lonToX(pt[0]);
+      const y = latToY(pt[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+
+    // choose fill color (can reuse temperature logic if desired)
+    const temp = weather?.temperature ?? 25;
+    let fill = 'rgba(34,197,94,0.45)'; // default green
+    if (temp >= 35) fill = 'rgba(220,38,38,0.45)';
+    else if (temp >= 30) fill = 'rgba(249,115,22,0.45)';
+    else if (temp >= 25) fill = 'rgba(234,179,8,0.45)';
+    else if (temp >= 20) fill = 'rgba(132,204,22,0.45)';
+
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    // optional outline
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+
+    // convert to data URL
+    const dataUrl = canvas.toDataURL('image/png');
+
+    // maplibre image source needs 4 corner coordinates [tl,tr,br,bl]
+    const coords = [
+      [bbox[0], bbox[3]], // top-left (minLon, maxLat)
+      [bbox[2], bbox[3]], // top-right (maxLon, maxLat)
+      [bbox[2], bbox[1]], // bottom-right (maxLon, minLat)
+      [bbox[0], bbox[1]]  // bottom-left (minLon, minLat)
+    ] as [[number, number], [number, number], [number, number], [number, number]];
+
+    try {
+      map.current.addSource(imageSourceId, {
+        type: 'image',
+        url: dataUrl,
+        coordinates: coords
+      });
+
+      map.current.addLayer({
+        id: imageLayerId,
+        type: 'raster',
+        source: imageSourceId,
+        paint: {
+          'raster-opacity': 0.75
+        }
+      }, undefined);
+    } catch (err) {
+      // fail silently if source exists or other issue
+      // console.warn(err);
+    }
+
+    return () => {
+      if (!map.current) return;
+      if (map.current.getLayer(imageLayerId)) map.current.removeLayer(imageLayerId);
+      if (map.current.getSource(imageSourceId)) map.current.removeSource(imageSourceId);
     };
   }, [plotPoints, savedPlot, weather, mapLoaded]);
 

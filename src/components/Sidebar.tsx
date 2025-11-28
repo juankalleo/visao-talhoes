@@ -96,7 +96,7 @@ export default function Sidebar({
                   <div className="p-2 rounded-lg bg-primary/10">
                     <CloudSun className="w-5 h-5 text-primary" />
                   </div>
-                  <h1 className="text-lg font-semibold">WeatherView</h1>
+                  <h1 className="text-lg font-semibold">SEMAGRIC Talhões</h1>
                 </div>
                 <Button
                   variant="ghost"
