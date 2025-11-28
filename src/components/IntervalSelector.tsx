@@ -24,10 +24,10 @@ export default function IntervalSelector({
   ];
 
   return (
-    <Card className="glass p-4">
+    <Card className="liquid-glass p-4 rounded-xl">
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <Clock className="w-4 h-4" />
+          <Clock className="w-4 h-4 text-primary" />
           <span>Intervalo de Atualização</span>
         </div>
 

@@ -29,10 +29,10 @@ export default function LayerToggle({
   ];
 
   return (
-    <Card className="glass p-4">
+    <Card className="liquid-glass p-4 rounded-xl">
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <Layers className="w-4 h-4" />
+          <Layers className="w-4 h-4 text-primary" />
           <span>Camadas do Mapa</span>
         </div>
 

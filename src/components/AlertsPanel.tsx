@@ -19,7 +19,7 @@ export default function AlertsPanel({
 }: AlertsPanelProps) {
   if (alerts.length === 0) {
     return (
-      <Card className="glass p-6 text-center">
+      <Card className="liquid-glass p-6 text-center rounded-xl">
         <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
         <p className="text-muted-foreground">Nenhum alerta no momento</p>
       </Card>
@@ -56,8 +56,8 @@ export default function AlertsPanel({
               transition={{ duration: 0.2 }}
               className="mb-2"
             >
-              <Card 
-                className="glass p-4 border-l-4"
+            <Card 
+                className="liquid-glass p-4 border-l-4 rounded-xl"
                 style={{ 
                   borderLeftColor: getAlertColor(alert.type)
                 }}

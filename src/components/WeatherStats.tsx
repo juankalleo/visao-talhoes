@@ -21,8 +21,8 @@ export default function WeatherStats({ weather, loading }: WeatherStatsProps) {
     return (
       <div className="space-y-3">
         {[...Array(7)].map((_, i) => (
-          <Card key={i} className="glass p-4 animate-pulse">
-            <div className="h-16 bg-muted rounded" />
+          <Card key={i} className="liquid-glass p-4 animate-pulse rounded-xl">
+            <div className="h-16 bg-muted/30 rounded" />
           </Card>
         ))}
       </div>
@@ -31,7 +31,7 @@ export default function WeatherStats({ weather, loading }: WeatherStatsProps) {
 
   if (!weather) {
     return (
-      <Card className="glass p-6 text-center">
+      <Card className="liquid-glass p-6 text-center rounded-xl">
         <p className="text-muted-foreground">
           Clique no mapa para selecionar uma localização
         </p>
@@ -93,15 +93,21 @@ export default function WeatherStats({ weather, loading }: WeatherStatsProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: index * 0.05 }}
         >
-          <Card className="glass p-4 hover:bg-card/80 transition-colors">
-            <div className="flex items-center justify-between">
+          <Card className="liquid-glass liquid-glass-hover p-4 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-secondary/50 ${stat.color}`}>
+                <motion.div 
+                  className={`p-2.5 rounded-xl bg-gradient-to-br from-white/20 to-white/5 ${stat.color}`}
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                >
                   <stat.icon className="w-5 h-5" />
-                </div>
+                </motion.div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-xl font-semibold">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground/80 font-medium tracking-wide uppercase">{stat.label}</p>
+                  <p className="text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                    {stat.value}
+                  </p>
                 </div>
               </div>
             </div>
@@ -109,11 +115,17 @@ export default function WeatherStats({ weather, loading }: WeatherStatsProps) {
         </motion.div>
       ))}
 
-      <Card className="glass p-4 mt-4">
-        <p className="text-xs text-muted-foreground text-center">
-          Última atualização: {weather.timestamp.toLocaleTimeString('pt-BR')}
-        </p>
-      </Card>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="liquid-glass p-4 mt-4 rounded-xl">
+          <p className="text-xs text-muted-foreground/70 text-center font-medium">
+            Última atualização: {weather.timestamp.toLocaleTimeString('pt-BR')}
+          </p>
+        </Card>
+      </motion.div>
     </div>
   );
 }
