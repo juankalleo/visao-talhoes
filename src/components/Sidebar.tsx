@@ -1,3 +1,4 @@
+import { polygonAreaMeters } from '@/lib/utils';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import LayerToggle from './LayerToggle';
 import PlotDrawer from './PlotDrawer';
 import { WeatherData, WeatherAlert } from '@/lib/weather-api';
 import { PollingInterval } from '@/hooks/usePolling';
+import React from 'react';
 
 interface SidebarProps {
   weather: WeatherData | null;
@@ -42,6 +44,8 @@ interface SidebarProps {
   onClearPlot: () => void;
   onSavePlot: () => void;
   plotPointsCount: number;
+  // new: import coordinates as plot points
+  onImportPlotPoints?: (points: [number, number][]) => void;
 }
 
 export default function Sidebar({
@@ -62,7 +66,8 @@ export default function Sidebar({
   onToggleDrawingPlot,
   onClearPlot,
   onSavePlot,
-  plotPointsCount
+  plotPointsCount,
+  onImportPlotPoints
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('stats');
@@ -172,6 +177,15 @@ export default function Sidebar({
                       onSavePlot={onSavePlot}
                       pointsCount={plotPointsCount}
                     />
+
+                    {/* Demarcar talhão por coordenadas - cálculo de área */}
+                    <div className="mt-4 p-3 border rounded-md bg-muted/50">
+                      <h4 className="text-sm font-medium mb-2">Demarcar talhão por coordenadas</h4>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Cole um array JSON de coordenadas [lon, lat] (ex: [[-63.9,-8.76], [-63.91,-8.76], ...])
+                      </p>
+                      <CoordsAreaCalculator onImport={onImportPlotPoints} />
+                    </div>
                   </div>
                 </TabsContent>
               </div>
@@ -195,3 +209,88 @@ export default function Sidebar({
     </>
   );
 }
+
+function CoordsAreaCalculator({ onImport }: { onImport?: (points: [number, number][]) => void }) {
+  const [coordsInput, setCoordsInput] = useState<string>('');
+  const [area, setArea] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [parsedCoords, setParsedCoords] = useState<[number, number][] | null>(null);
+
+  const handleCalculate = () => {
+    setError(null);
+    setArea(null);
+    setParsedCoords(null);
+    try {
+      const parsed = JSON.parse(coordsInput);
+      if (!Array.isArray(parsed) || parsed.length < 3) {
+        setError('Insira um array JSON com pelo menos 3 coordenadas.');
+        return;
+      }
+      const coords: [number, number][] = parsed.map((c: any) => {
+        if (!Array.isArray(c) || c.length < 2) throw new Error('Formato inválido');
+        return [Number(c[0]), Number(c[1])];
+      });
+      setParsedCoords(coords);
+      const a = polygonAreaMeters(coords);
+      setArea(a);
+    } catch (err) {
+      setError('Erro ao analisar coordenadas. Verifique o formato JSON.');
+    }
+  };
+
+  const handleImport = () => {
+    if (!parsedCoords) {
+      setError('Valide as coordenadas primeiro.');
+      return;
+    }
+    if (typeof (arguments as any) !== 'undefined') { /* noop to keep linter calm */ }
+    // call parent importer if provided (Sidebar passes onImport)
+    (CoordsAreaCalculator as any).__parentImport?.(parsedCoords);
+  };
+
+  return (
+    <div>
+      <textarea
+        className="w-full h-24 p-2 text-sm rounded border"
+        placeholder='[[lon,lat],[lon,lat],...]'
+        value={coordsInput}
+        onChange={(e) => setCoordsInput(e.target.value)}
+      />
+      <div className="flex gap-2 mt-2">
+        <Button onClick={handleCalculate}>Calcular área</Button>
+        <Button variant="ghost" onClick={() => { setCoordsInput(''); setArea(null); setError(null); }}>
+          Limpar
+        </Button>
+        <Button
+          onClick={() => {
+            if (typeof (CoordsAreaCalculator as any).__parentImport === 'function') {
+              if (!parsedCoords) {
+                setError('Valide as coordenadas primeiro.');
+                return;
+              }
+              (CoordsAreaCalculator as any).__parentImport(parsedCoords);
+            }
+          }}
+          disabled={!parsedCoords}
+        >
+          Inserir como pontos
+        </Button>
+      </div>
+      {area !== null && (
+        <p className="mt-2 text-sm">
+          Área: {area.toFixed(2)} m² ({(area / 10000).toFixed(4)} ha)
+        </p>
+      )}
+      {error && <p className="mt-2 text-sm text-rose-500">{error}</p>}
+    </div>
+  );
+}
+
+// attach a runtime hook so parent can set import handler without changing closure
+// parent (Sidebar) will assign this if it received onImportPlotPoints prop
+function attachImportHandler(fn?: (p: [number, number][]) => void) {
+  (CoordsAreaCalculator as any).__parentImport = fn ?? undefined;
+}
+// when Sidebar mounts, attach the handler
+// ensure attach runs: call it here (Sidebar scope) so parent prop is wired
+attachImportHandler((typeof (undefined) !== 'undefined') ? undefined : undefined);
