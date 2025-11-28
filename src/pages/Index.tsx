@@ -18,6 +18,9 @@ const Index = () => {
     temperature: false,
     clouds: false
   });
+  const [isDrawingPlot, setIsDrawingPlot] = useState(false);
+  const [plotPoints, setPlotPoints] = useState<[number, number][]>([]);
+  const [savedPlot, setSavedPlot] = useState<[number, number][]>([]);
 
   const handleLocationChange = useCallback((lat: number, lon: number) => {
     setCurrentLocation({ lat, lon });
@@ -33,6 +36,24 @@ const Index = () => {
   const handleLayerChange = (layer: keyof typeof layers, value: boolean) => {
     setLayers(prev => ({ ...prev, [layer]: value }));
   };
+
+  const handleToggleDrawingPlot = useCallback(() => {
+    setIsDrawingPlot(prev => !prev);
+  }, []);
+
+  const handleClearPlot = useCallback(() => {
+    setPlotPoints([]);
+    setSavedPlot([]);
+    setIsDrawingPlot(false);
+  }, []);
+
+  const handleSavePlot = useCallback(() => {
+    if (plotPoints.length >= 3) {
+      setSavedPlot(plotPoints);
+      setPlotPoints([]);
+      setIsDrawingPlot(false);
+    }
+  }, [plotPoints]);
 
   // Initial load
   useEffect(() => {
@@ -55,6 +76,11 @@ const Index = () => {
         onLayerChange={handleLayerChange}
         showHeatmap={showHeatmap}
         onHeatmapChange={setShowHeatmap}
+        isDrawingPlot={isDrawingPlot}
+        onToggleDrawingPlot={handleToggleDrawingPlot}
+        onClearPlot={handleClearPlot}
+        onSavePlot={handleSavePlot}
+        plotPointsCount={plotPoints.length}
       />
       
       <main className="flex-1 relative">
@@ -63,6 +89,10 @@ const Index = () => {
           onLocationChange={handleLocationChange}
           showHeatmap={showHeatmap}
           layers={layers}
+          isDrawingPlot={isDrawingPlot}
+          onPlotPointsChange={setPlotPoints}
+          plotPoints={plotPoints}
+          savedPlot={savedPlot}
         />
       </main>
     </div>

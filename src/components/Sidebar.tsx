@@ -14,6 +14,7 @@ import WeatherStats from './WeatherStats';
 import AlertsPanel from './AlertsPanel';
 import IntervalSelector from './IntervalSelector';
 import LayerToggle from './LayerToggle';
+import PlotDrawer from './PlotDrawer';
 import { WeatherData, WeatherAlert } from '@/lib/weather-api';
 import { PollingInterval } from '@/hooks/usePolling';
 
@@ -36,6 +37,11 @@ interface SidebarProps {
   onLayerChange: (layer: keyof SidebarProps['layers'], value: boolean) => void;
   showHeatmap: boolean;
   onHeatmapChange: (value: boolean) => void;
+  isDrawingPlot: boolean;
+  onToggleDrawingPlot: () => void;
+  onClearPlot: () => void;
+  onSavePlot: () => void;
+  plotPointsCount: number;
 }
 
 export default function Sidebar({
@@ -51,7 +57,12 @@ export default function Sidebar({
   layers,
   onLayerChange,
   showHeatmap,
-  onHeatmapChange
+  onHeatmapChange,
+  isDrawingPlot,
+  onToggleDrawingPlot,
+  onClearPlot,
+  onSavePlot,
+  plotPointsCount
 }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('stats');
@@ -153,6 +164,13 @@ export default function Sidebar({
                       onLayerChange={onLayerChange}
                       showHeatmap={showHeatmap}
                       onHeatmapChange={onHeatmapChange}
+                    />
+                    <PlotDrawer
+                      isDrawing={isDrawingPlot}
+                      onToggleDrawing={onToggleDrawingPlot}
+                      onClearPlot={onClearPlot}
+                      onSavePlot={onSavePlot}
+                      pointsCount={plotPointsCount}
                     />
                   </div>
                 </TabsContent>

@@ -13,13 +13,21 @@ interface MapViewProps {
     temperature: boolean;
     clouds: boolean;
   };
+  isDrawingPlot?: boolean;
+  onPlotPointsChange?: (points: [number, number][]) => void;
+  plotPoints?: [number, number][];
+  savedPlot?: [number, number][];
 }
 
 export default function MapView({ 
   weather, 
   onLocationChange,
   showHeatmap = false,
-  layers = { rain: false, wind: false, temperature: false, clouds: false }
+  layers = { rain: false, wind: false, temperature: false, clouds: false },
+  isDrawingPlot = false,
+  onPlotPointsChange,
+  plotPoints = [],
+  savedPlot
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -92,10 +100,15 @@ export default function MapView({
       }
     });
 
-    // Click to set location
+    // Click to set location or add plot point
     map.current.on('click', (e) => {
       const { lng, lat } = e.lngLat;
-      if (onLocationChange) {
+      
+      if (isDrawingPlot && onPlotPointsChange) {
+        // Add point to plot
+        const newPoints = [...plotPoints, [lng, lat] as [number, number]];
+        onPlotPointsChange(newPoints);
+      } else if (onLocationChange) {
         onLocationChange(lat, lng);
       }
     });
@@ -249,6 +262,121 @@ export default function MapView({
       }
     };
   }, [showHeatmap, weather, mapLoaded]);
+
+  // Draw plot markers
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    // Remove existing markers
+    const existingMarkers = document.querySelectorAll('.plot-marker');
+    existingMarkers.forEach(marker => marker.remove());
+
+    // Add markers for each point
+    plotPoints.forEach((point, index) => {
+      const el = document.createElement('div');
+      el.className = 'plot-marker';
+      el.style.cssText = `
+        width: 12px;
+        height: 12px;
+        background: hsl(var(--primary));
+        border: 2px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        cursor: pointer;
+        z-index: 1000;
+      `;
+      
+      new maplibregl.Marker({ element: el })
+        .setLngLat(point)
+        .addTo(map.current!);
+    });
+  }, [plotPoints, mapLoaded]);
+
+  // Draw plot polygon
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const sourceId = 'plot-polygon-source';
+    const layerId = 'plot-polygon-layer';
+    const lineLayerId = 'plot-line-layer';
+
+    // Remove existing layers
+    if (map.current.getLayer(lineLayerId)) {
+      map.current.removeLayer(lineLayerId);
+    }
+    if (map.current.getLayer(layerId)) {
+      map.current.removeLayer(layerId);
+    }
+    if (map.current.getSource(sourceId)) {
+      map.current.removeSource(sourceId);
+    }
+
+    const pointsToUse = savedPlot || (plotPoints.length >= 3 ? plotPoints : null);
+
+    if (!pointsToUse || pointsToUse.length < 3) return;
+
+    // Calculate color based on temperature
+    const getColorForTemperature = (temp: number) => {
+      if (temp >= 35) return 'rgba(220, 38, 38, 0.4)'; // Red
+      if (temp >= 30) return 'rgba(249, 115, 22, 0.4)'; // Orange
+      if (temp >= 25) return 'rgba(234, 179, 8, 0.4)'; // Yellow
+      if (temp >= 20) return 'rgba(132, 204, 22, 0.4)'; // Light green
+      return 'rgba(34, 197, 94, 0.4)'; // Green
+    };
+
+    const temperature = weather?.temperature || 25;
+    const fillColor = getColorForTemperature(temperature);
+
+    // Close the polygon
+    const coordinates = [...pointsToUse, pointsToUse[0]];
+
+    map.current.addSource(sourceId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [coordinates]
+        }
+      }
+    });
+
+    // Add fill layer
+    map.current.addLayer({
+      id: layerId,
+      type: 'fill',
+      source: sourceId,
+      paint: {
+        'fill-color': fillColor,
+        'fill-opacity': 0.6
+      }
+    });
+
+    // Add outline layer
+    map.current.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 2,
+        'line-opacity': 0.8
+      }
+    });
+
+    return () => {
+      if (map.current?.getLayer(lineLayerId)) {
+        map.current.removeLayer(lineLayerId);
+      }
+      if (map.current?.getLayer(layerId)) {
+        map.current.removeLayer(layerId);
+      }
+      if (map.current?.getSource(sourceId)) {
+        map.current.removeSource(sourceId);
+      }
+    };
+  }, [plotPoints, savedPlot, weather, mapLoaded]);
 
   return (
     <div className="relative w-full h-full">
