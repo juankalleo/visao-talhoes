@@ -33,6 +33,7 @@ export default function MapView({
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [satVisible, setSatVisible] = useState(false);
 
   // Refs to avoid stale closures in map event handlers
   const isDrawingRef = useRef(isDrawingPlot);
@@ -502,12 +503,145 @@ export default function MapView({
     };
   }, [plotPoints, savedPlot, weather, mapLoaded]);
 
+  // Satellite imagery layer (optional)
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const satSourceId = 'esri-world-imagery';
+    const satLayerId = 'esri-world-imagery-layer';
+
+    // add source if missing
+    if (!map.current.getSource(satSourceId)) {
+      map.current.addSource(satSourceId, {
+        type: 'raster',
+        tiles: [
+          'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        attribution: 'Esri World Imagery'
+      });
+    }
+
+    // add layer if missing (start hidden)
+    if (!map.current.getLayer(satLayerId)) {
+      map.current.addLayer({
+        id: satLayerId,
+        type: 'raster',
+        source: satSourceId,
+        layout: { visibility: 'none' },
+        paint: { 'raster-opacity': 1.0 }
+      }, undefined);
+    }
+
+    // toggle helper for quick testing in console
+    (window as any).toggleSatellite = (show: boolean) => {
+      try {
+        if (!map.current) return;
+        const layerExists = !!map.current.getLayer(satLayerId);
+        if (!layerExists) return;
+        map.current.setLayoutProperty(satLayerId, 'visibility', show ? 'visible' : 'none');
+      } catch (e) { /* ignore */ }
+    };
+
+    return () => {
+      try {
+        if (map.current?.getLayer(satLayerId)) map.current.removeLayer(satLayerId);
+        if (map.current?.getSource(satSourceId)) map.current.removeSource(satSourceId);
+      } catch {}
+      delete (window as any).toggleSatellite;
+    };
+  }, [mapLoaded]);
+
+  // toggle visibility when state changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const osmLayerId = 'osm-tiles-layer';
+    const satLayerId = 'esri-world-imagery-layer';
+    try {
+      if (map.current.getLayer(satLayerId)) {
+        map.current.setLayoutProperty(satLayerId, 'visibility', satVisible ? 'visible' : 'none');
+      }
+      if (map.current.getLayer(osmLayerId)) {
+        map.current.setLayoutProperty(osmLayerId, 'visibility', satVisible ? 'none' : 'visible');
+      }
+    } catch (e) {
+      // ignore errors when layers not present yet
+    }
+  }, [satVisible, mapLoaded]);
+
+  // map control UI (OSM / Satélite)
+  useEffect(() => {
+    if (!mapContainer.current || !map.current || !mapLoaded) return;
+
+    const ctrl = document.createElement('div');
+    ctrl.className = 'map-base-toggle';
+    ctrl.style.cssText = `
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+      background: rgba(255,255,255,0.9);
+      padding: 6px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      font-size: 13px;
+    `;
+
+    const btnOSM = document.createElement('button');
+    btnOSM.textContent = 'OSM';
+    btnOSM.style.cssText = `
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 0;
+      background: ${satVisible ? 'transparent' : '#0ea5a4'};
+      color: ${satVisible ? '#111' : '#fff'};
+      cursor: pointer;
+    `;
+
+    const btnSat = document.createElement('button');
+    btnSat.textContent = 'Satélite';
+    btnSat.style.cssText = `
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 0;
+      background: ${satVisible ? '#0ea5a4' : 'transparent'};
+      color: ${satVisible ? '#fff' : '#111'};
+      cursor: pointer;
+    `;
+
+    const updateStyles = () => {
+      btnOSM.style.background = satVisible ? 'transparent' : '#0ea5a4';
+      btnOSM.style.color = satVisible ? '#111' : '#fff';
+      btnSat.style.background = satVisible ? '#0ea5a4' : 'transparent';
+      btnSat.style.color = satVisible ? '#fff' : '#111';
+    };
+
+    btnOSM.onclick = () => {
+      setSatVisible(false);
+      updateStyles();
+    };
+    btnSat.onclick = () => {
+      setSatVisible(true);
+      updateStyles();
+    };
+
+    ctrl.appendChild(btnOSM);
+    ctrl.appendChild(btnSat);
+    mapContainer.current.appendChild(ctrl);
+
+    return () => {
+      try { ctrl.remove(); } catch {}
+    };
+  }, [mapLoaded, satVisible]);
+
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
       
-      {/* Overlay gradient */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-background/5 via-transparent to-background/10" />
+      {/* Overlay gradient (temporarily transparent for debugging) */}
+      <div className="absolute inset-0 pointer-events-none bg-none" />
     </div>
   );
 }
