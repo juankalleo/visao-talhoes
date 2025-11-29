@@ -1,5 +1,4 @@
-import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Save } from 'lucide-react';
+import React from 'react';
 
 interface PlotDrawerProps {
   isDrawing: boolean;
@@ -28,38 +27,32 @@ export default function PlotDrawer({
       </div>
 
       <div className="space-y-2">
-        <Button
+        <button
           onClick={onToggleDrawing}
-          variant={isDrawing ? "default" : "outline"}
-          className="w-full justify-start gap-2"
-          size="sm"
+          className={`w-full justify-start gap-2 inline-flex items-center px-3 py-2 rounded ${isDrawing ? 'bg-primary text-white' : 'border'}`}
         >
-          <Pencil className="h-4 w-4" />
+          {/* ícone omitido para simplicidade */}
           {isDrawing ? 'Desmarcar no mapa' : 'Marcar pontos no mapa'}
-        </Button>
+        </button>
 
         {pointsCount >= 3 && (
-          <Button
+          <button
             onClick={onSavePlot}
-            variant="outline"
-            className="w-full justify-start gap-2"
-            size="sm"
+            className="w-full bg-emerald-500 text-white px-3 py-2 rounded"
+            type="button"
           >
-            <Save className="h-4 w-4" />
             Finalizar talhão
-          </Button>
+          </button>
         )}
 
         {pointsCount > 0 && (
-          <Button
+          <button
             onClick={onClearPlot}
-            variant="outline"
-            className="w-full justify-start gap-2 text-destructive hover:text-destructive"
-            size="sm"
+            className="w-full border px-3 py-2 rounded"
+            type="button"
           >
-            <Trash2 className="h-4 w-4" />
             Limpar pontos
-          </Button>
+          </button>
         )}
       </div>
 
