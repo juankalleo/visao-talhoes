@@ -2,22 +2,7 @@
  * TileURL Interceptor para MapLibre GL
  * Converte URLs diretas do Copernicus para passar pelo proxy do backend
  */
-
-/**
- * Gets the API base URL - detects environment automatically
- */
-export function getApiUrl(): string {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
-  
-  // Se estiver em Vercel (hostname !== localhost), API está no mesmo domínio
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return window.location.origin;
-  }
-  
-  // Dev local
-  return 'http://localhost:3001';
-}
+import { getApiUrl } from './utils';
 
 /**
  * Gera uma URL de proxy para tiles WMS do Copernicus

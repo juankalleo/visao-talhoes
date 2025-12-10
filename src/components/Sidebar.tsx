@@ -276,8 +276,8 @@ export default function Sidebar({
                     <Leaf className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex flex-col">
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">SEMAGRIC</h1>
-                    <span className="text-xs font-medium text-primary">Talhões</span>
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">ORBITA MAP</h1>
+                    <span className="text-xs font-medium text-primary">Monitoramento</span>
                   </div>
                 </div>
                 <Button

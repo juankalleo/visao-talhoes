@@ -5,6 +5,7 @@ import { WeatherData } from '@/lib/weather-api';
 import { Sentinel2Data } from '@/lib/sentinel2-api';
 import usePolygons, { SavedPlot } from '@/hooks/usePolygons'; // optional import for type only
 import { transformMapLibreTiles } from '@/lib/tileInterceptor';
+import { getApiUrl } from '@/lib/utils';
 
 interface MapViewProps {
   weather: WeatherData | null;
@@ -88,12 +89,7 @@ export default function MapView({
     if (!map.current || !mapLoaded) return;
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || (() => {
-        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-          return window.location.origin;
-        }
-        return 'http://localhost:3001';
-      })();
+      const apiUrl = getApiUrl();
       
       const sourceIds = ['sentinel2-tiles', 'ndvi-tiles', 'ndmi-tiles', 'ndbi-tiles'];
       sourceIds.forEach(sourceId => {
@@ -103,9 +99,9 @@ export default function MapView({
           if (source) {
             const tileUrl = 
               sourceId === 'sentinel2-tiles' ? `${apiUrl}/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}` :
-              sourceId === 'ndvi-tiles' ? `${apiUrl}/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
-              sourceId === 'ndmi-tiles' ? `${apiUrl}/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
-              `${apiUrl}/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`;
+              sourceId === 'ndvi-tiles' ? `${apiUrl}/sentinel2/ndvi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              sourceId === 'ndmi-tiles' ? `${apiUrl}/sentinel2/ndmi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              `${apiUrl}/sentinel2/ndbi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}`;
             
             source.setTiles([tileUrl]);
           }
@@ -124,7 +120,7 @@ useEffect(() => {
 
     const initialLat = -10.2926;
     const initialLon = -65.2979;
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const apiUrl = getApiUrl();
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
@@ -152,7 +148,7 @@ useEffect(() => {
           'ndvi-tiles': {
             type: 'raster',
             tiles: [
-              `${apiUrl}/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndvi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDVI - Vegetação (Verde=Saudável, Vermelho=Sem Veg)'
@@ -160,7 +156,7 @@ useEffect(() => {
           'ndmi-tiles': {
             type: 'raster',
             tiles: [
-              `${apiUrl}/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndmi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDMI - Umidade (Azul=Seco, Verde=Úmido)'
@@ -168,7 +164,7 @@ useEffect(() => {
           'ndbi-tiles': {
             type: 'raster',
             tiles: [
-              `${apiUrl}/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndbi-tiles/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDBI - Construção (Cinza=Urbano, Escuro=Construído)'

@@ -40,6 +40,21 @@ app.use((req, res, next) => {
 });
 
 /**
+ * Converte XYZ tile para Quadkey (para Bing Maps)
+ */
+function quadKey(x: number, y: number, z: number): string {
+  let quadKey = '';
+  for (let i = z; i > 0; i--) {
+    let digit = 0;
+    const mask = 1 << (i - 1);
+    if ((x & mask) !== 0) digit += 1;
+    if ((y & mask) !== 0) digit += 2;
+    quadKey += digit.toString();
+  }
+  return quadKey;
+}
+
+/**
  * Converte bounding box em Web Mercator (EPSG:3857) para tiles XYZ
  * Formato bbox: minx,miny,maxx,maxy
  * Retorna um tile representativo do centro da bbox
@@ -135,6 +150,52 @@ function generateGreenPlaceholderTile(): Buffer {
       0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x63, 0xF8, 0x0F, 0x00, 0x00,
       0x01, 0x01, 0x00, 0x05, 0x01, 0x36, 0xF4, 0xD1, 0x2E, 0x00, 0x00, 0x00,
       0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    ]);
+  }
+}
+
+/**
+ * Gera um tile PNG azul (placeholder para NDMI - umidade)
+ * Retorna um PNG válido 1x1 pixel azul
+ */
+function generateBluePlaceholderTile(): Buffer {
+  // PNG azul 1x1 pixel em base64
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12NgYPhQAEEAKUUIQQtfM6kAAAAASUVORK5CYII=';
+  
+  try {
+    const buffer = Buffer.from(pngBase64, 'base64');
+    return buffer;
+  } catch (e) {
+    return Buffer.from([
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+      0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x63, 0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0B, 0xA4, 0x6C, 0xCE, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    ]);
+  }
+}
+
+/**
+ * Gera um tile PNG cinza (placeholder para NDBI - construção)
+ * Retorna um PNG válido 1x1 pixel cinza
+ */
+function generateGrayPlaceholderTile(): Buffer {
+  // PNG cinza 1x1 pixel em base64
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4/x8A/AIB/BYAaB7H2cMlKZYAAAAASUVORK5CYII=';
+  
+  try {
+    const buffer = Buffer.from(pngBase64, 'base64');
+    return buffer;
+  } catch (e) {
+    return Buffer.from([
+      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+      0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0x99, 0x63, 0x80, 0x00, 0x00, 0x00,
+      0x03, 0x00, 0x01, 0x44, 0xAE, 0x3D, 0x1A, 0x00, 0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
     ]);
   }
 }
@@ -242,9 +303,6 @@ async function fetchIndexTileFromCopernicus(
     wmsUrl.searchParams.set('time', dateRange);
     wmsUrl.searchParams.set('colormap', colormapMap[indexType]);
 
-    console.log(`🔍 ${indexType.toUpperCase()} Requesting from Copernicus...`);
-
-    const controller = new AbortController();
     console.log(`🔍 ${indexType.toUpperCase()} Requesting from Copernicus...`);
 
     // Obter token de autenticação se disponível
@@ -1013,7 +1071,7 @@ app.get('/api/sentinel2/satellite-tiles/:z/:x/:y.jpg', async (req: Request, res:
     }
     
     // FALLBACK 1: Google Satellite (recente, confiável)
-    console.log(`🔄 Fallback: Google Satellite para ${z}/${x}/${y}`);
+    console.log(`🔄 Fallback 1: Google Satellite para ${z}/${x}/${y}`);
     try {
       const googleUrl = `https://mt1.google.com/vt/lyrs=s&x=${tx}&y=${ty}&z=${zoom}`;
       
@@ -1043,6 +1101,38 @@ app.get('/api/sentinel2/satellite-tiles/:z/:x/:y.jpg', async (req: Request, res:
       }
     } catch (error) {
       console.warn(`⚠️ Google Satellite Error: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
+    
+    // FALLBACK 2: Bing Maps Satellite (alternativa confiável)
+    console.log(`🔄 Fallback 2: Bing Satellite para ${z}/${x}/${y}`);
+    try {
+      const bingUrl = `https://ecn.t0.tiles.virtualearth.net/tiles/a${quadKey(tx, ty, zoom)}.jpeg?g=11911`;
+      
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 8000);
+      
+      const bingResponse = await fetch(bingUrl, {
+        method: 'GET',
+        signal: controller2.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      clearTimeout(timeout2);
+      
+      if (bingResponse.ok && bingResponse.body) {
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('X-Tile-Source', 'bing-satellite');
+        res.setHeader('X-Fallback', 'true');
+        
+        console.log(`✅ Bing Satellite Success: ${z}/${x}/${y}`);
+        return bingResponse.body.pipe(res);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Bing Satellite Error: ${error instanceof Error ? error.message : 'unknown'}`);
     }
     
     // Se ambos falharem, retornar placeholder
@@ -1141,15 +1231,15 @@ app.get('/api/sentinel2/ndvi-tiles/:z/:x/:y.png', async (req: Request, res: Resp
       console.warn(`⚠️ NDVI Error: ${error instanceof Error ? error.message : 'unknown'} - Tentando fallback...`);
     }
 
-    // FALLBACK: Esri World Imagery (como base visual)
-    console.log(`🔄 Fallback: Esri Imagery para ${z}/${x}/${y}`);
+    // FALLBACK 1: Google Satellite (para NDVI - mostrar base)
+    console.log(`🔄 Fallback 1: Google Satellite para ${z}/${x}/${y}`);
     try {
-      const esriUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`;
+      const googleUrl = `https://mt1.google.com/vt/lyrs=s&x=${tx}&y=${ty}&z=${zoom}`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const esriResponse = await fetch(esriUrl, {
+      const googleResponse = await fetch(googleUrl, {
         method: 'GET',
         signal: controller.signal,
         headers: {
@@ -1159,22 +1249,22 @@ app.get('/api/sentinel2/ndvi-tiles/:z/:x/:y.png', async (req: Request, res: Resp
 
       clearTimeout(timeout);
 
-      if (esriResponse.ok && esriResponse.body) {
-        res.setHeader('Content-Type', esriResponse.headers.get('content-type') || 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 dias
+      if (googleResponse.ok && googleResponse.body) {
+        res.setHeader('Content-Type', googleResponse.headers.get('content-type') || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('X-Tile-Source', 'esri-imagery');
+        res.setHeader('X-Tile-Source', 'google-satellite-fallback');
         res.setHeader('X-Fallback', 'true');
 
-        console.log(`✅ Esri Fallback Success: ${z}/${x}/${y}`);
-        return esriResponse.body.pipe(res);
+        console.log(`✅ Google Fallback Success (NDVI): ${z}/${x}/${y}`);
+        return googleResponse.body.pipe(res);
       }
     } catch (error) {
-      console.warn(`⚠️ Esri Error: ${error instanceof Error ? error.message : 'unknown'}`);
+      console.warn(`⚠️ Google Error: ${error instanceof Error ? error.message : 'unknown'}`);
     }
 
     // Se ambos falharem, retornar placeholder verde
-    console.warn(`❌ NDVI e Esri falharam, retornando placeholder verde`);
+    console.warn(`❌ NDVI e Google falharam, retornando placeholder verde`);
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1233,41 +1323,42 @@ app.get('/api/sentinel2/ndmi-tiles/:z/:x/:y.png', async (req: Request, res: Resp
     });
     
     if (!response.ok) {
-      // Copernicus falhou, tentar Esri World Imagery como fallback
-      console.warn(`⚠️ NDMI WMS Error: ${response.status}, tentando Esri...`);
+      // Copernicus falhou, tentar Google Satellite como fallback
+      console.warn(`⚠️ NDMI WMS Error: ${response.status}, tentando Google Satellite...`);
       
       try {
-        const esriUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`;
+        const googleUrl = `https://mt1.google.com/vt/lyrs=s&x=${tx}&y=${ty}&z=${zoom}`;
         
-        const esriResponse = await fetch(esriUrl, {
+        const googleResponse = await fetch(googleUrl, {
           method: 'GET',
           headers: {
             'User-Agent': 'Mozilla/5.0'
           }
         });
         
-        if (esriResponse.ok) {
-          console.log(`✅ NDMI Esri Fallback: ${z}/${x}/${y}`);
-          res.setHeader('Content-Type', esriResponse.headers.get('content-type') || 'image/png');
-          res.setHeader('Cache-Control', 'public, max-age=604800');
+        if (googleResponse.ok) {
+          console.log(`✅ NDMI Google Fallback: ${z}/${x}/${y}`);
+          res.setHeader('Content-Type', googleResponse.headers.get('content-type') || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
           res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('X-Tile-Source', 'esri-fallback');
+          res.setHeader('X-Tile-Source', 'google-fallback');
+          res.setHeader('X-Fallback', 'true');
           
-          if (esriResponse.body) {
-            return esriResponse.body.pipe(res);
+          if (googleResponse.body) {
+            return googleResponse.body.pipe(res);
           }
         }
-      } catch (esriError) {
-        console.warn(`⚠️ NDMI Esri também falhou: ${esriError instanceof Error ? esriError.message : 'unknown'}`);
+      } catch (googleError) {
+        console.warn(`⚠️ NDMI Google também falhou: ${googleError instanceof Error ? googleError.message : 'unknown'}`);
       }
       
-      // Se ambos falharem, retornar placeholder cinza
-      console.warn(`❌ NDMI: Ambos Copernicus e Esri falharam, retornando placeholder`);
+      // Se ambos falharem, retornar placeholder azul (NDMI = umidade)
+      console.warn(`❌ NDMI: Ambos Copernicus e Google falharam, retornando placeholder azul`);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=60');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('X-Placeholder', 'true');
-      return res.send(generatePlaceholderTile());
+      return res.send(generateBluePlaceholderTile());
     }
     
     res.setHeader('Content-Type', 'image/png');
@@ -1330,33 +1421,42 @@ app.get('/api/sentinel2/ndbi-tiles/:z/:x/:y.png', async (req: Request, res: Resp
     });
     
     if (!response.ok) {
-      // Copernicus falhou, tentar Esri World Imagery como fallback
-      console.warn(`⚠️ NDBI WMS Error: ${response.status}, tentando Esri...`);
+      // Copernicus falhou, tentar Google Satellite como fallback
+      console.warn(`⚠️ NDBI WMS Error: ${response.status}, tentando Google Satellite...`);
       
       try {
-        const esriUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`;
+        const googleUrl = `https://mt1.google.com/vt/lyrs=s&x=${tx}&y=${ty}&z=${zoom}`;
         
-        const esriResponse = await fetch(esriUrl, {
+        const googleResponse = await fetch(googleUrl, {
           method: 'GET',
           headers: {
             'User-Agent': 'Mozilla/5.0'
           }
         });
         
-        if (esriResponse.ok) {
-          console.log(`✅ NDBI Esri Fallback: ${z}/${x}/${y}`);
-          res.setHeader('Content-Type', esriResponse.headers.get('content-type') || 'image/png');
-          res.setHeader('Cache-Control', 'public, max-age=604800');
+        if (googleResponse.ok) {
+          console.log(`✅ NDBI Google Fallback: ${z}/${x}/${y}`);
+          res.setHeader('Content-Type', googleResponse.headers.get('content-type') || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
           res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('X-Tile-Source', 'esri-fallback');
+          res.setHeader('X-Tile-Source', 'google-fallback');
+          res.setHeader('X-Fallback', 'true');
           
-          if (esriResponse.body) {
-            return esriResponse.body.pipe(res);
+          if (googleResponse.body) {
+            return googleResponse.body.pipe(res);
           }
         }
-      } catch (esriError) {
-        console.warn(`⚠️ NDBI Esri também falhou: ${esriError instanceof Error ? esriError.message : 'unknown'}`);
+      } catch (googleError) {
+        console.warn(`⚠️ NDBI Google também falhou: ${googleError instanceof Error ? googleError.message : 'unknown'}`);
       }
+      
+      // Se ambos falharem, retornar placeholder cinza (NDBI = construção)
+      console.warn(`❌ NDBI: Ambos Copernicus e Google falharam, retornando placeholder cinza`);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Placeholder', 'true');
+      return res.send(generateGrayPlaceholderTile());
       
       // Se ambos falharem, retornar placeholder cinza
       console.warn(`❌ NDBI: Ambos Copernicus e Esri falharam, retornando placeholder`);

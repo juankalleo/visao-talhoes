@@ -97,15 +97,11 @@ export default function Monitoramento() {
         <Sidebar
           weather={weather}
           loading={loading}
-          selectedPlotId={selectedPlotId}
-          alerts={alerts}
-          onRemoveAlert={handleRemoveAlert}
-          onClearAlerts={handleClearAlerts}
           interval={interval}
           onIntervalChange={() => {}}
           onRefresh={() => {}}
           isPolling={false}
-          layers={{ rain: false, wind: false, temperature: false, clouds: false }}
+          layers={{ rain: false, wind: false, temperature: false, clouds: false, ndvi: false, ndmi: false }}
           onLayerChange={() => {}}
           sentinelFilters={sentinelFilters}
           sentinelOpacity={sentinelOpacity}
@@ -117,7 +113,6 @@ export default function Monitoramento() {
           onToggleDrawingPlot={toggleDrawing}
           onClearPlot={clearPlot}
           plotPointsCount={plotPoints.length}
-          plotPoints={plotPoints}
           onImportPlotPoints={(p) => {
             setPlotPoints(p);
             setIsDrawingPlot(true);

@@ -45,15 +45,15 @@ export function polygonCentroid(coords: [number, number][]) {
 
 /**
  * Get API URL based on environment
- * - Development: VITE_API_URL or http://localhost:3001
+ * - Development: http://localhost:3001 (always)
  * - Production: VITE_API_URL or window.location.origin/api
  */
 export const getApiUrl = () => {
-  // Em desenvolvimento local
+  // Em desenvolvimento local - SEMPRE usa localhost:3001
   if (import.meta.env.DEV) {
-    return import.meta.env.VITE_API_URL || "http://localhost:3001";
+    return "http://localhost:3001/api";
   }
 
-  // Em produção (Vercel)
+  // Em produção (Vercel) - usa a variável de ambiente ou fallback
   return import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 };
