@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl'; // se já importou, ignore
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { WeatherData } from '@/lib/weather-api';
+import { Sentinel2Data } from '@/lib/sentinel2-api';
 import usePolygons, { SavedPlot } from '@/hooks/usePolygons'; // optional import for type only
+import { transformMapLibreTiles } from '@/lib/tileInterceptor';
 
 interface MapViewProps {
   weather: WeatherData | null;
+  sentinel2Data?: Sentinel2Data | null;
   onLocationChange?: (lat: number, lon: number) => void;
   showHeatmap?: boolean;
   layers?: {
@@ -35,7 +38,8 @@ interface MapViewProps {
 }
 
 export default function MapView({ 
-  weather, 
+  weather,
+  sentinel2Data,
   onLocationChange,
   showHeatmap = false,
   layers = { rain: false, wind: false, temperature: false, clouds: false },
@@ -51,6 +55,7 @@ export default function MapView({
   const marker = useRef<maplibregl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [satVisible, setSatVisible] = useState(false);
+  const [cacheBuster, setCacheBuster] = useState(Date.now()); // Força tiles a recarregar a cada 5 min
 
   // Refs to avoid stale closures in map event handlers
   const isDrawingRef = useRef(isDrawingPlot);
@@ -60,10 +65,51 @@ export default function MapView({
   const plotMarkersRef = useRef<maplibregl.Marker[]>([]);
   const clickHandlerRef = useRef<((e: any) => void) | null>(null);
 
+  // Atualiza cache buster a cada 5 minutos para forçar tiles atualizadas
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCacheBuster(Date.now());
+      // Também força refresh do mapa
+      if (map.current) {
+        map.current.triggerRepaint();
+      }
+    }, 5 * 60 * 1000); // 5 minutos
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => { isDrawingRef.current = isDrawingPlot; }, [isDrawingPlot]);
   useEffect(() => { plotPointsRef.current = plotPoints; }, [plotPoints]);
   useEffect(() => { onPlotPointsChangeRef.current = onPlotPointsChange; }, [onPlotPointsChange]);
   useEffect(() => { onLocationChangeRef.current = onLocationChange; }, [onLocationChange]);
+
+  // Atualiza tiles quando cacheBuster muda (a cada 5 minutos)
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    try {
+      const sourceIds = ['sentinel2-tiles', 'ndvi-tiles', 'ndmi-tiles', 'ndbi-tiles'];
+      sourceIds.forEach(sourceId => {
+        if (map.current?.getSource(sourceId)) {
+          // Force reload by updating the source with new cache buster
+          const source = map.current.getSource(sourceId) as maplibregl.RasterTileSource;
+          if (source) {
+            const tileUrl = 
+              sourceId === 'sentinel2-tiles' ? `http://localhost:3001/api/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}` :
+              sourceId === 'ndvi-tiles' ? `http://localhost:3001/api/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              sourceId === 'ndmi-tiles' ? `http://localhost:3001/api/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              `http://localhost:3001/api/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`;
+            
+            source.setTiles([tileUrl]);
+          }
+        }
+      });
+      map.current?.triggerRepaint();
+      console.log('🔄 Cache buster updated - forcing tile refresh');
+    } catch (err) {
+      console.warn('Failed to update tiles with cache buster:', err);
+    }
+  }, [cacheBuster, mapLoaded]);
 
   // Initialize map
 useEffect(() => {
@@ -90,34 +136,34 @@ useEffect(() => {
           'sentinel2-tiles': {
             type: 'raster',
             tiles: [
-              'https://sh.dataspace.copernicus.eu/api/v1/wms?request=GetMap&service=WMS&version=1.3.0&layers=SENTINEL2_L2A.TCI_10m&format=image/png&srs=EPSG:3857&width=512&height=512&bbox={bbox-epsg-3857}'
+              `http://localhost:3001/api/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}`
             ],
-            tileSize: 512,
-            attribution: '© Copernicus Sentinel-2'
+            tileSize: 256,
+            attribution: '© Copernicus Sentinel-2 (Imagem Atual)'
           },
           'ndvi-tiles': {
             type: 'raster',
             tiles: [
-              'https://sh.dataspace.copernicus.eu/api/v1/wms?request=GetMap&service=WMS&version=1.3.0&layers=SENTINEL2_L2A.NDVI&format=image/png&srs=EPSG:3857&width=512&height=512&colormap=viridis&bbox={bbox-epsg-3857}'
+              `http://localhost:3001/api/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
-            tileSize: 512,
-            attribution: '© Copernicus Sentinel-2 NDVI'
+            tileSize: 256,
+            attribution: '© NDVI - Vegetação (Verde=Saudável, Vermelho=Sem Veg)'
           },
           'ndmi-tiles': {
             type: 'raster',
             tiles: [
-              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              `http://localhost:3001/api/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
-            attribution: '© Esri World Imagery'
+            attribution: '© NDMI - Umidade (Azul=Seco, Verde=Úmido)'
           },
           'ndbi-tiles': {
             type: 'raster',
             tiles: [
-              'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+              `http://localhost:3001/api/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
-            attribution: '© Google Satellite'
+            attribution: '© NDBI - Construção (Cinza=Urbano, Escuro=Construído)'
           },
           'heatmap-tiles': {
             type: 'raster',
@@ -1103,6 +1149,15 @@ useEffect(() => {
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
       
+      {/* Sentinel-2 Data Date Display */}
+      {sentinel2Data && sentinel2Data.acquisitionDate && (
+        <div className="absolute bottom-2 right-2 z-10 pointer-events-none">
+          <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded shadow-lg font-medium">
+            🛰️ Sentinel-2: {new Date(sentinel2Data.acquisitionDate).toLocaleDateString('pt-BR')}
+          </div>
+        </div>
+      )}
+
       {/* Overlay gradient (temporarily transparent for debugging) */}
       <div className="absolute inset-0 pointer-events-none bg-none" />
     </div>

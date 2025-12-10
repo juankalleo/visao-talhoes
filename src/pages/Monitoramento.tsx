@@ -21,6 +21,23 @@ export default function Monitoramento() {
   // Alerts state (use WeatherAlert so AlertsPanel receives correct type)
   const [alerts, setAlerts] = useState<WeatherAlert[]>([]);
 
+  // Sentinel filters state
+  const [sentinelFilters, setSentinelFilters] = useState({
+    satellite: true,
+    ndvi: false,
+    ndmi: false,
+    ndbi: false,
+    heatmap: false,
+  });
+
+  const [sentinelOpacity, setSentinelOpacity] = useState({
+    satellite: 0.85,
+    ndvi: 0.75,
+    ndmi: 0.75,
+    ndbi: 0.75,
+    heatmap: 0.7,
+  });
+
   useEffect(() => {
     if (polygons && polygons.length > 0) {
       const p = polygons[0] as SavedPlot;
@@ -60,6 +77,20 @@ export default function Monitoramento() {
     setAlerts([]);
   };
 
+  const handleSentinelFilterChange = (filter: keyof typeof sentinelFilters, value: boolean) => {
+    setSentinelFilters((prev) => ({
+      ...prev,
+      [filter]: value,
+    }));
+  };
+
+  const handleSentinelOpacityChange = (layer: keyof typeof sentinelOpacity, value: number) => {
+    setSentinelOpacity((prev) => ({
+      ...prev,
+      [layer]: value,
+    }));
+  };
+
   return (
     <div className="w-full h-screen flex">
       <aside className="z-40">
@@ -76,6 +107,10 @@ export default function Monitoramento() {
           isPolling={false}
           layers={{ rain: false, wind: false, temperature: false, clouds: false }}
           onLayerChange={() => {}}
+          sentinelFilters={sentinelFilters}
+          sentinelOpacity={sentinelOpacity}
+          onSentinelFilterChange={handleSentinelFilterChange}
+          onSentinelOpacityChange={handleSentinelOpacityChange}
           showHeatmap={false}
           onHeatmapChange={() => {}}
           isDrawingPlot={isDrawingPlot}
@@ -107,6 +142,8 @@ export default function Monitoramento() {
           onLocationChange={(lat, lon) => { try { fetchWeather(lat, lon); } catch {} }}
           showHeatmap={false}
           layers={{ rain: false, wind: false, temperature: false, clouds: false }}
+          sentinelFilters={sentinelFilters}
+          sentinelOpacity={sentinelOpacity}
           isDrawingPlot={isDrawingPlot}
           onPlotPointsChange={handlePlotPointsChange}
           plotPoints={plotPoints}

@@ -59,10 +59,10 @@ interface STACSearchResponse {
 }
 
 /**
- * Fetch Sentinel-2 data using STAC API (Spatiotemporal Asset Catalog)
- * Método mais rápido e sem autenticação necessária
+ * Fetch Sentinel-2 data using STAC API via Backend Proxy
+ * Método mais rápido, sem autenticação necessária, sem CORS
  * 
- * STAC Browser: https://stac.dataspace.copernicus.eu/browser
+ * O proxy em http://localhost:3001 contorna restrições CORS
  */
 export async function fetchSentinel2Data(
   latitude: number,
@@ -73,8 +73,8 @@ export async function fetchSentinel2Data(
     const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 30));
     const endDate = dateRange?.endDate || new Date();
 
-    // Tentar STAC API primeiro
-    const searchUrl = 'https://stac.dataspace.copernicus.eu/api/v1/search';
+    // Usar proxy do backend em vez de chamar Copernicus direto
+    const proxyUrl = 'http://localhost:3001/api/sentinel2/stac-search';
     
     const searchPayload = {
       collections: ['sentinel-2'],
@@ -83,7 +83,9 @@ export async function fetchSentinel2Data(
       limit: 1
     };
 
-    const response = await fetch(searchUrl, {
+    console.log('🔍 Buscando Sentinel-2 via proxy...');
+
+    const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -93,7 +95,8 @@ export async function fetchSentinel2Data(
     });
 
     if (!response.ok) {
-      console.warn('STAC API indisponível', response.status, response.statusText);
+      console.warn('⚠️  Backend proxy indisponível ou STAC API fora do ar', response.status, response.statusText);
+      console.warn('   Certifique-se de que o servidor está rodando: npm run dev');
       return getSimulatedSentinel2Data(latitude, longitude);
     }
 
@@ -127,6 +130,8 @@ export async function fetchSentinel2Data(
     // Calculate NDBI = (SWIR - NIR) / (SWIR + NIR)
     const ndbi = (bandValues.B11 - bandValues.B8) / (bandValues.B11 + bandValues.B8);
 
+    console.log('✅ Sentinel-2 data loaded from proxy');
+
     return {
       ndvi: Math.max(-1, Math.min(1, ndvi)),
       ndmi: Math.max(-1, Math.min(1, ndmi)),
@@ -140,7 +145,8 @@ export async function fetchSentinel2Data(
       imageUrl: latestImage.assets?.visual?.href || undefined,
     };
   } catch (error) {
-    console.error('Erro ao buscar dados Sentinel-2 STAC:', error);
+    console.error('❌ Erro ao buscar dados Sentinel-2:', error);
+    console.info('💡 Se estiver em desenvolvimento, certifique-se de que rodou: npm install && npm run dev');
     return getSimulatedSentinel2Data(latitude, longitude);
   }
 }

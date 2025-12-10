@@ -121,6 +121,7 @@ const Index = () => {
       <main className="flex-1 relative">
         <MapView
           weather={weather}
+          sentinel2Data={sentinel2Data}
           onLocationChange={handleLocationChange}
           showHeatmap={showHeatmap}
           layers={layers}

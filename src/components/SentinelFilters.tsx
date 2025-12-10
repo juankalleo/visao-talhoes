@@ -33,31 +33,31 @@ export default function SentinelFilters({
     {
       key: 'satellite' as const,
       label: '🛰️ Satélite',
-      description: 'Imagem RGB em tempo real',
+      description: 'Imagem RGB en tempo real (Copernicus)',
       color: 'text-blue-500'
     },
     {
       key: 'ndvi' as const,
       label: '🌱 NDVI',
-      description: 'Índice de Vegetação',
+      description: 'Verde=Vegetação, Amarelo=Transição, Vermelho=Sem Veg',
       color: 'text-green-500'
     },
     {
       key: 'ndmi' as const,
       label: '💧 NDMI',
-      description: 'Índice de Umidade',
+      description: 'Marrom=Seco, Ciano=Moderado, Verde=Úmido',
       color: 'text-cyan-500'
     },
     {
       key: 'ndbi' as const,
       label: '🏗️ NDBI',
-      description: 'Construções/Áreas Urbanas',
+      description: 'Cinza=Rural, Preto=Urbano/Construído',
       color: 'text-amber-500'
     },
     {
       key: 'heatmap' as const,
       label: '🔥 Mapa de Calor',
-      description: 'Intensidade Térmica',
+      description: 'Intensidade Térmica do Terreno',
       color: 'text-red-500'
     }
   ];
