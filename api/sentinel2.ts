@@ -2,6 +2,7 @@
  * Vercel Serverless Function para redirecionar requisições da API Sentinel-2
  * Executa o servidor Express como uma função serverless
  */
+// @ts-ignore - VercelRequest/Response só existem em Vercel
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import cors from 'cors';
