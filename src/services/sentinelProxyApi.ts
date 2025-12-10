@@ -1,9 +1,9 @@
 /**
  * API Wrapper para Sentinel-2 Proxy
- * Chamadas ao backend em http://localhost:3001
+ * Chamadas ao backend - usa VITE_API_URL do ambiente
  */
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export interface STACSearchParams {
   bbox: [number, number, number, number];
@@ -86,7 +86,8 @@ export async function authenticate(): Promise<any> {
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`http://localhost:3001/health`);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const response = await fetch(`${apiUrl}/health`);
     return response.ok;
   } catch {
     return false;

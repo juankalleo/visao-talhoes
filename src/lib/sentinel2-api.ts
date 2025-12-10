@@ -62,7 +62,7 @@ interface STACSearchResponse {
  * Fetch Sentinel-2 data using STAC API via Backend Proxy
  * Método mais rápido, sem autenticação necessária, sem CORS
  * 
- * O proxy em http://localhost:3001 contorna restrições CORS
+ * O proxy em http://localhost:3001 (dev) ou Vercel (prod) contorna restrições CORS
  */
 export async function fetchSentinel2Data(
   latitude: number,
@@ -73,8 +73,9 @@ export async function fetchSentinel2Data(
     const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 30));
     const endDate = dateRange?.endDate || new Date();
 
-    // Usar proxy do backend em vez de chamar Copernicus direto
-    const proxyUrl = 'http://localhost:3001/api/sentinel2/stac-search';
+    // Usar proxy do backend - usa VITE_API_URL do ambiente
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const proxyUrl = `${apiUrl}/sentinel2/stac-search`;
     
     const searchPayload = {
       collections: ['sentinel-2'],

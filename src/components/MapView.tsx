@@ -88,6 +88,7 @@ export default function MapView({
     if (!map.current || !mapLoaded) return;
 
     try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const sourceIds = ['sentinel2-tiles', 'ndvi-tiles', 'ndmi-tiles', 'ndbi-tiles'];
       sourceIds.forEach(sourceId => {
         if (map.current?.getSource(sourceId)) {
@@ -95,10 +96,10 @@ export default function MapView({
           const source = map.current.getSource(sourceId) as maplibregl.RasterTileSource;
           if (source) {
             const tileUrl = 
-              sourceId === 'sentinel2-tiles' ? `http://localhost:3001/api/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}` :
-              sourceId === 'ndvi-tiles' ? `http://localhost:3001/api/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
-              sourceId === 'ndmi-tiles' ? `http://localhost:3001/api/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
-              `http://localhost:3001/api/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`;
+              sourceId === 'sentinel2-tiles' ? `${apiUrl}/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}` :
+              sourceId === 'ndvi-tiles' ? `${apiUrl}/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              sourceId === 'ndmi-tiles' ? `${apiUrl}/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}` :
+              `${apiUrl}/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`;
             
             source.setTiles([tileUrl]);
           }
@@ -117,6 +118,7 @@ useEffect(() => {
 
     const initialLat = -10.2926;
     const initialLon = -65.2979;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
@@ -136,7 +138,7 @@ useEffect(() => {
           'sentinel2-tiles': {
             type: 'raster',
             tiles: [
-              `http://localhost:3001/api/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/satellite-tiles/{z}/{x}/{y}.jpg?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© Copernicus Sentinel-2 (Imagem Atual)'
@@ -144,7 +146,7 @@ useEffect(() => {
           'ndvi-tiles': {
             type: 'raster',
             tiles: [
-              `http://localhost:3001/api/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndvi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDVI - Vegetação (Verde=Saudável, Vermelho=Sem Veg)'
@@ -152,7 +154,7 @@ useEffect(() => {
           'ndmi-tiles': {
             type: 'raster',
             tiles: [
-              `http://localhost:3001/api/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndmi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDMI - Umidade (Azul=Seco, Verde=Úmido)'
@@ -160,7 +162,7 @@ useEffect(() => {
           'ndbi-tiles': {
             type: 'raster',
             tiles: [
-              `http://localhost:3001/api/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
+              `${apiUrl}/sentinel2/ndbi-visual/{z}/{x}/{y}.png?t=${cacheBuster}`
             ],
             tileSize: 256,
             attribution: '© NDBI - Construção (Cinza=Urbano, Escuro=Construído)'

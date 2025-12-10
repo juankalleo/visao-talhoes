@@ -15,4 +15,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    __API_URL__: JSON.stringify(process.env.VITE_API_URL || 'http://localhost:3001'),
+    __STAC_URL__: JSON.stringify(process.env.VITE_STAC_API_URL || 'https://stac.dataspace.copernicus.eu/api/v1'),
+    __COPERNICUS_BASE_URL__: JSON.stringify(process.env.VITE_COPERNICUS_BASE_URL || 'https://catalogue.dataspace.copernicus.eu'),
+  },
 }));

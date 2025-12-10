@@ -18,7 +18,8 @@ export function getProxyWmsUrl(
   colormap?: string
 ): string {
   // Construir URL do proxy com variáveis de template que MapLibre vai substituir
-  let proxyUrl = 'http://localhost:3001/api/sentinel2/wms?';
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  let proxyUrl = `${apiUrl}/sentinel2/wms?`;
   proxyUrl += `layers=${encodeURIComponent(layers)}&`;
   proxyUrl += `format=image/png&`;
   proxyUrl += `srs=EPSG:3857&`;
