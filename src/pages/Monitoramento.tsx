@@ -4,24 +4,18 @@ import MapView from "@/components/MapView";
 import usePolygons, { SavedPlot } from "@/hooks/usePolygons";
 import { PollingInterval } from "@/hooks/usePolling";
 import { WeatherData, WeatherAlert } from "@/lib/weather-api";
-import { useWeather } from '@/hooks/useWeather'; // <-- added
+import { useWeather } from '@/hooks/useWeather';
 
 export default function Monitoramento() {
   const { polygons } = usePolygons();
   const [isDrawingPlot, setIsDrawingPlot] = useState(false);
   const [plotPoints, setPlotPoints] = useState<[number, number][]>([]);
-
-  // track currently selected plot (from "Mostrar")
   const [selectedPlotId, setSelectedPlotId] = useState<string | null>(null);
 
-  // use real weather hook so we can fetch/update when showing a saved plot
   const { weather, loading, fetchWeather } = useWeather();
   const [interval] = useState<PollingInterval>(null);
-
-  // Alerts state (use WeatherAlert so AlertsPanel receives correct type)
   const [alerts, setAlerts] = useState<WeatherAlert[]>([]);
 
-  // Sentinel filters state
   const [sentinelFilters, setSentinelFilters] = useState({
     satellite: true,
     ndvi: false,
@@ -117,15 +111,12 @@ export default function Monitoramento() {
             setPlotPoints(p);
             setIsDrawingPlot(true);
           }}
-          // when Sidebar clicks "Mostrar" it will call this to update weather
           onGoToLocation={async (lat, lon, plotId?: string) => {
             try {
-              // mark selected plot immediately so Sidebar can highlight it
               if (plotId) setSelectedPlotId(plotId);
-              // await the fetch so loading state is meaningful to consumers
               await fetchWeather(lat, lon);
             } catch (err) {
-              // ignore for now; you can add toast on error
+              console.error("Error fetching weather:", err);
             }
           }}
         />
