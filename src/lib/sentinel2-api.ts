@@ -74,7 +74,18 @@ export async function fetchSentinel2Data(
     const endDate = dateRange?.endDate || new Date();
 
     // Usar proxy do backend - usa VITE_API_URL do ambiente
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // Se estiver em Vercel e VITE_API_URL não estiver definido, usa a URL atual da página
+    const apiUrl = import.meta.env.VITE_API_URL || (() => {
+      // Em Vercel (prod), window.location.origin é o domínio do app
+      // Em dev local, é http://localhost:8080
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+        // Rodando em produção (Vercel), API está no mesmo domínio
+        return `${window.location.origin}/api`;
+      }
+      // Dev local
+      return 'http://localhost:3001';
+    })();
+    
     const proxyUrl = `${apiUrl}/sentinel2/stac-search`;
     
     const searchPayload = {

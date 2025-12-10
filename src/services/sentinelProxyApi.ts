@@ -3,7 +3,20 @@
  * Chamadas ao backend - usa VITE_API_URL do ambiente
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+  
+  // Se estiver em Vercel (hostname !== localhost), API está no mesmo domínio
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}`;
+  }
+  
+  // Dev local
+  return 'http://localhost:3001';
+};
+
+const API_BASE = getApiBase();
 
 export interface STACSearchParams {
   bbox: [number, number, number, number];

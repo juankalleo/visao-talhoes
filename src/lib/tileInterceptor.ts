@@ -4,6 +4,22 @@
  */
 
 /**
+ * Gets the API base URL - detects environment automatically
+ */
+export function getApiUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+  
+  // Se estiver em Vercel (hostname !== localhost), API está no mesmo domínio
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return window.location.origin;
+  }
+  
+  // Dev local
+  return 'http://localhost:3001';
+}
+
+/**
  * Gera uma URL de proxy para tiles WMS do Copernicus
  * @param layers - Nome da camada WMS (ex: 'SENTINEL2_L2A.TCI_10m')
  * @param width - Largura do tile (normalmente 512 para WMS)
@@ -18,7 +34,7 @@ export function getProxyWmsUrl(
   colormap?: string
 ): string {
   // Construir URL do proxy com variáveis de template que MapLibre vai substituir
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const apiUrl = getApiUrl();
   let proxyUrl = `${apiUrl}/sentinel2/wms?`;
   proxyUrl += `layers=${encodeURIComponent(layers)}&`;
   proxyUrl += `format=image/png&`;

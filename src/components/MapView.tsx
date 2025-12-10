@@ -88,7 +88,13 @@ export default function MapView({
     if (!map.current || !mapLoaded) return;
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || (() => {
+        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+          return window.location.origin;
+        }
+        return 'http://localhost:3001';
+      })();
+      
       const sourceIds = ['sentinel2-tiles', 'ndvi-tiles', 'ndmi-tiles', 'ndbi-tiles'];
       sourceIds.forEach(sourceId => {
         if (map.current?.getSource(sourceId)) {
