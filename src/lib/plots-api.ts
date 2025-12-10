@@ -1,3 +1,5 @@
+import { getApiUrl } from './utils';
+
 export interface CreatePlotPayload {
   id: string;
   name?: string;
@@ -15,8 +17,8 @@ export interface CreatePlotPayload {
  * Se não houver endpoint disponível, a chamada vai falhar e é tratada pelo chamador.
  */
 export async function createPlotOnServer(payload: CreatePlotPayload) {
-  const base = (import.meta.env.VITE_API_BASE as string) || '';
-  const url = `${base}/api/plots`;
+  const apiUrl = getApiUrl();
+  const url = `${apiUrl}/plots`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

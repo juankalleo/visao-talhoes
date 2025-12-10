@@ -7,6 +7,7 @@
  * Método STAC API (recomendado, sem autenticação necessária)
  * Acesso a dados Sentinel-2 gratuitos do ESA
  */
+import { getApiUrl } from './utils';
 
 export interface Sentinel2Data {
   ndvi: number | null;
@@ -73,18 +74,10 @@ export async function fetchSentinel2Data(
     const startDate = dateRange?.startDate || new Date(new Date().setDate(new Date().getDate() - 30));
     const endDate = dateRange?.endDate || new Date();
 
-    // Usar proxy do backend - usa VITE_API_URL do ambiente
-    // Se estiver em Vercel e VITE_API_URL não estiver definido, usa a URL atual da página
-    const apiUrl = import.meta.env.VITE_API_URL || (() => {
-      // Em Vercel (prod), window.location.origin é o domínio do app
-      // Em dev local, é http://localhost:8080
-      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        // Rodando em produção (Vercel), API está no mesmo domínio
-        return `${window.location.origin}/api`;
-      }
-      // Dev local
-      return 'http://localhost:3001';
-    })();
+    // Usar proxy do backend com getApiUrl() para fallback automático
+    // Em dev: http://localhost:3001
+    // Em prod (Vercel): https://visao-talhoes.vercel.app/api (ou configurado em VITE_API_URL)
+    const apiUrl = getApiUrl();
     
     const proxyUrl = `${apiUrl}/sentinel2/stac-search`;
     

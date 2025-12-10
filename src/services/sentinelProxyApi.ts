@@ -1,19 +1,12 @@
 /**
  * API Wrapper para Sentinel-2 Proxy
- * Chamadas ao backend - usa VITE_API_URL do ambiente
+ * Chamadas ao backend - usa getApiUrl() com fallback automático
  */
 
+import { getApiUrl } from '@/lib/utils';
+
 const getApiBase = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
-  
-  // Se estiver em Vercel (hostname !== localhost), API está no mesmo domínio
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return `${window.location.origin}`;
-  }
-  
-  // Dev local
-  return 'http://localhost:3001';
+  return getApiUrl();
 };
 
 const API_BASE = getApiBase();
@@ -99,7 +92,7 @@ export async function authenticate(): Promise<any> {
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const apiUrl = getApiUrl();
     const response = await fetch(`${apiUrl}/health`);
     return response.ok;
   } catch {
