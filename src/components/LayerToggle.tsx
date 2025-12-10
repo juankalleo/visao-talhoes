@@ -9,6 +9,8 @@ interface LayerToggleProps {
     wind: boolean;
     temperature: boolean;
     clouds: boolean;
+    ndvi: boolean;
+    ndmi: boolean;
   };
   onLayerChange: (layer: keyof LayerToggleProps['layers'], value: boolean) => void;
   showHeatmap: boolean;
@@ -25,7 +27,9 @@ export default function LayerToggle({
     { key: 'temperature' as const, label: 'Temperatura' },
     { key: 'rain' as const, label: 'Chuva' },
     { key: 'wind' as const, label: 'Vento' },
-    { key: 'clouds' as const, label: 'Nuvens' }
+    { key: 'clouds' as const, label: 'Nuvens' },
+    { key: 'ndvi' as const, label: 'NDVI (Vegetação)' },
+    { key: 'ndmi' as const, label: 'NDMI (Umidade)' }
   ];
 
   return (

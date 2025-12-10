@@ -4,10 +4,14 @@ import Sidebar from '@/components/Sidebar';
 import { useWeather } from '@/hooks/useWeather';
 import { usePolling, PollingInterval } from '@/hooks/usePolling';
 import { useAlerts } from '@/hooks/useAlerts';
+import { useRemoteSensing } from '@/hooks/useRemoteSensing';
+import { useSentinel2 } from '@/hooks/useSentinel2';
 
 const Index = () => {
   const { weather, loading, fetchWeather } = useWeather();
   const { alerts, removeAlert, clearAlerts } = useAlerts(weather);
+  const { remoteSensingData, fetchData: fetchRemoteSensing } = useRemoteSensing();
+  const { sentinel2Data, ndviStats, fetchData: fetchSentinel2 } = useSentinel2();
   
   const [interval, setInterval] = useState<PollingInterval>(null);
   const [currentLocation, setCurrentLocation] = useState({ lat: -8.7619, lon: -63.9039 });
@@ -16,7 +20,23 @@ const Index = () => {
     rain: false,
     wind: false,
     temperature: false,
-    clouds: false
+    clouds: false,
+    ndvi: false,
+    ndmi: false
+  });
+  const [sentinelFilters, setSentinelFilters] = useState({
+    satellite: false,
+    ndvi: false,
+    ndmi: false,
+    ndbi: false,
+    heatmap: false
+  });
+  const [sentinelOpacity, setSentinelOpacity] = useState({
+    satellite: 0.85,
+    ndvi: 0.75,
+    ndmi: 0.75,
+    ndbi: 0.75,
+    heatmap: 0.7
   });
   const [isDrawingPlot, setIsDrawingPlot] = useState(false);
   const [plotPoints, setPlotPoints] = useState<[number, number][]>([]);
@@ -25,7 +45,9 @@ const Index = () => {
   const handleLocationChange = useCallback((lat: number, lon: number) => {
     setCurrentLocation({ lat, lon });
     fetchWeather(lat, lon);
-  }, [fetchWeather]);
+    fetchRemoteSensing(lat, lon);
+    fetchSentinel2(lat, lon);
+  }, [fetchWeather, fetchRemoteSensing, fetchSentinel2]);
 
   const handleRefresh = useCallback(() => {
     fetchWeather(currentLocation.lat, currentLocation.lon);
@@ -35,6 +57,14 @@ const Index = () => {
 
   const handleLayerChange = (layer: keyof typeof layers, value: boolean) => {
     setLayers(prev => ({ ...prev, [layer]: value }));
+  };
+
+  const handleSentinelFilterChange = (filter: keyof typeof sentinelFilters, value: boolean) => {
+    setSentinelFilters(prev => ({ ...prev, [filter]: value }));
+  };
+
+  const handleSentinelOpacityChange = (layer: keyof typeof sentinelOpacity, value: number) => {
+    setSentinelOpacity(prev => ({ ...prev, [layer]: value }));
   };
 
   const handleToggleDrawingPlot = useCallback(() => {
@@ -58,6 +88,8 @@ const Index = () => {
   // Initial load
   useEffect(() => {
     fetchWeather(currentLocation.lat, currentLocation.lon);
+    fetchRemoteSensing(currentLocation.lat, currentLocation.lon);
+    fetchSentinel2(currentLocation.lat, currentLocation.lon);
   }, []);
 
   return (
@@ -65,15 +97,18 @@ const Index = () => {
       <Sidebar
         weather={weather}
         loading={loading}
-        alerts={alerts}
-        onRemoveAlert={removeAlert}
-        onClearAlerts={clearAlerts}
+        remoteSensingData={remoteSensingData}
+        sentinel2Data={sentinel2Data}
         interval={interval}
         onIntervalChange={setInterval}
         onRefresh={handleRefresh}
         isPolling={isPolling}
         layers={layers}
         onLayerChange={handleLayerChange}
+        sentinelFilters={sentinelFilters}
+        sentinelOpacity={sentinelOpacity}
+        onSentinelFilterChange={handleSentinelFilterChange}
+        onSentinelOpacityChange={handleSentinelOpacityChange}
         showHeatmap={showHeatmap}
         onHeatmapChange={setShowHeatmap}
         isDrawingPlot={isDrawingPlot}
@@ -89,6 +124,8 @@ const Index = () => {
           onLocationChange={handleLocationChange}
           showHeatmap={showHeatmap}
           layers={layers}
+          sentinelFilters={sentinelFilters}
+          sentinelOpacity={sentinelOpacity}
           isDrawingPlot={isDrawingPlot}
           onPlotPointsChange={setPlotPoints}
           plotPoints={plotPoints}

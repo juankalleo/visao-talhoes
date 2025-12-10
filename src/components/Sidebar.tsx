@@ -5,32 +5,32 @@ import { createPlotOnServer } from '@/lib/plots-api';
 import { toast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Menu, 
   X, 
-  Home, 
-  Bell,
   CloudSun,
   Sun,
-  Moon
+  Moon,
+  Leaf
 } from 'lucide-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import WeatherStats from './WeatherStats';
-import AlertsPanel from './AlertsPanel';
 import IntervalSelector from './IntervalSelector';
 import LayerToggle from './LayerToggle';
 import PlotDrawer from './PlotDrawer';
-import { WeatherData, WeatherAlert } from '@/lib/weather-api';
+import RemoteSensingPanel from './RemoteSensingPanel';
+import Sentinel2Panel from './Sentinel2Panel';
+import SentinelFilters from './SentinelFilters';
+import { WeatherData } from '@/lib/weather-api';
+import { RemoteSensingData } from '@/lib/remote-sensing-api';
+import { Sentinel2Data } from '@/lib/sentinel2-api';
 import { PollingInterval } from '@/hooks/usePolling';
 
 interface SidebarProps {
   weather: WeatherData | null;
   loading: boolean;
-  alerts: WeatherAlert[];
-  onRemoveAlert: (id: string) => void;
-  onClearAlerts: () => void;
+  remoteSensingData?: RemoteSensingData | null;
+  sentinel2Data?: Sentinel2Data | null;
   interval: PollingInterval;
   onIntervalChange: (interval: PollingInterval) => void;
   onRefresh: () => void;
@@ -40,8 +40,28 @@ interface SidebarProps {
     wind: boolean;
     temperature: boolean;
     clouds: boolean;
+    ndvi: boolean;
+    ndmi: boolean;
   };
   onLayerChange: (layer: keyof SidebarProps['layers'], value: boolean) => void;
+
+  // sentinel filters and opacity control
+  sentinelFilters?: {
+    satellite: boolean;
+    ndvi: boolean;
+    ndmi: boolean;
+    ndbi: boolean;
+    heatmap: boolean;
+  };
+  sentinelOpacity?: {
+    satellite: number;
+    ndvi: number;
+    ndmi: number;
+    ndbi: number;
+    heatmap: number;
+  };
+  onSentinelFilterChange?: (filter: keyof NonNullable<SidebarProps['sentinelFilters']>, value: boolean) => void;
+  onSentinelOpacityChange?: (layer: keyof NonNullable<SidebarProps['sentinelOpacity']>, value: number) => void;
 
   // plotting / heatmap props (optional)
   showHeatmap?: boolean;
@@ -69,15 +89,18 @@ interface SidebarProps {
 export default function Sidebar({
   weather,
   loading,
-  alerts,
-  onRemoveAlert,
-  onClearAlerts,
+  remoteSensingData,
+  sentinel2Data,
   interval,
   onIntervalChange,
   onRefresh,
   isPolling,
   layers,
   onLayerChange,
+  sentinelFilters,
+  sentinelOpacity,
+  onSentinelFilterChange,
+  onSentinelOpacityChange,
   showHeatmap,
   onHeatmapChange,
   isDrawingPlot,
@@ -101,7 +124,14 @@ export default function Sidebar({
 
   // Sidebar UI state (fix for "isOpen"/"activeTab" not defined errors)
   const [isOpen, setIsOpen] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<string>('stats');
+  const [activeTab, setActiveTab] = useState<string>('settings');
+  const [showCoordsInput, setShowCoordsInput] = useState<boolean>(false);
+  const [showLocationSearch, setShowLocationSearch] = useState<boolean>(false);
+  const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [showSentinel2, setShowSentinel2] = useState<boolean>(false);
+  const [showRemoteSensing, setShowRemoteSensing] = useState<boolean>(false);
+  const [showInterval, setShowInterval] = useState<boolean>(false);
+  const [showSavedPlots, setShowSavedPlots] = useState<boolean>(false);
 
   const handleOpenSaveForm = () => {
     // set a sensible default name "Talhão N"
@@ -214,35 +244,19 @@ export default function Sidebar({
     } catch {}
   }, [darkMode]);
 
-  // small responsive toggle button (always rendered, anchored next to the sidebar)
-  // position: attached to sidebar when open (left = 320px), near left edge when closed.
-  const toggleButtonStyle: React.CSSProperties = {
-    left: isOpen ? '320px' : '8px',
-  };
   
-  const ToggleAttachedButton = (
-    <button
-      aria-label={isOpen ? 'Fechar sidebar' : 'Abrir sidebar'}
-      onClick={() => setIsOpen(v => !v)}
-      className="fixed top-12 z-50 flex items-center justify-center w-8 h-10 rounded-r-md shadow-md bg-white/90 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-border focus:outline-none"
-      style={{ ...toggleButtonStyle, transition: 'left 200ms ease' }}
-    >
-      {isOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-    </button>
-  );
-
   return (
     <>
-      {ToggleAttachedButton}
-      {/* Mobile toggle button */}
-      <Button
-        variant="secondary"
-        size="icon"
-        className="fixed top-4 left-4 z-50 lg:hidden glass"
-        onClick={() => setIsOpen(!isOpen)}
+      {/* Toggle button - attached to sidebar */}
+      <motion.button
+        aria-label={isOpen ? 'Fechar sidebar' : 'Abrir sidebar'}
+        onClick={() => setIsOpen(v => !v)}
+        animate={{ left: isOpen ? '320px' : '0px' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed top-1/2 -translate-y-1/2 z-50 flex items-center justify-center w-10 h-10 rounded-r-lg shadow-lg bg-primary text-white hover:bg-primary/90 transition-all"
       >
-        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </Button>
+        {isOpen ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+      </motion.button>
 
       {/* Sidebar */}
       <AnimatePresence mode="wait">
@@ -255,13 +269,16 @@ export default function Sidebar({
             className="fixed lg:relative inset-y-0 left-0 z-40 w-80 bg-background/95 backdrop-blur-xl border-r border-border overflow-hidden flex flex-col"
           >
             {/* Header */}
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <CloudSun className="w-5 h-5 text-primary" />
+            <div className="p-6 border-b border-border bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg">
+                    <Leaf className="w-6 h-6 text-white" />
                   </div>
-                  <h1 className="text-lg font-semibold">SEMAGRIC Talhões</h1>
+                  <div className="flex flex-col">
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">SEMAGRIC</h1>
+                    <span className="text-xs font-medium text-primary">Talhões</span>
+                  </div>
                 </div>
                 <Button
                   variant="ghost"
@@ -272,127 +289,16 @@ export default function Sidebar({
                   <X className="w-5 h-5" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Monitoramento climático em tempo real
+              <p className="text-xs font-medium text-muted-foreground bg-primary/10 px-3 py-2 rounded-lg">
+                Monitoramento de talhões em tempo real
               </p>
             </div>
 
-            {/* Tabs: Dados / Alertas / Config (restored) */}
+            {/* Tabs: apenas Config */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="w-full grid grid-cols-3 m-4 mb-0">
-                <TabsTrigger value="stats" className="gap-2">
-                  <Home className="w-4 h-4" />
-                  <span className="hidden sm:inline">Dados</span>
-                </TabsTrigger>
-                <TabsTrigger value="alerts" className="gap-2">
-                  <Bell className="w-4 h-4" />
-                  {alerts.length > 0 && (
-                    <Badge variant="destructive" className="h-5 min-w-5 p-0 flex items-center justify-center text-xs">
-                      {alerts.length}
-                    </Badge>
-                  )}
-                  <span className="hidden sm:inline">Alertas</span>
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="gap-2">
-                  <CloudSun className="w-4 h-4" />
-                  <span className="hidden sm:inline">Config</span>
-                </TabsTrigger>
-              </TabsList>
-
               <div className="flex-1 overflow-hidden">
-                <TabsContent value="stats" className="h-full m-0">
-                  <div className="h-full overflow-y-auto hide-scrollbar p-4">
-                    {/* show small banner when fetching data for a selected talhão */}
-                    {loading && selectedPlotId && (
-                      <div className="mb-3 p-2 rounded text-sm bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                        Buscando dados do talhão...
-                      </div>
-                    )}
-                    <WeatherStats weather={weather} loading={loading} />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="alerts" className="h-full m-0">
-                  <div className="h-full overflow-y-auto hide-scrollbar p-4">
-                    {/*
-                      Combine alerts recebidos por props com notificações internas dos talhões.
-                      Mapeamos notificações para o formato esperado por AlertsPanel e
-                      encaminhamos remoção para o pai (alerts) ou removemos da notificação do talhão.
-                    */}
-                    {(() => {
-                      // map polygon notifications into WeatherAlert-like objects
-                      // normalize parent alerts: ensure timestamp is Date
-                      const parentAlertsNormalized: WeatherAlert[] = (alerts ?? []).map((a) => ({
-                        ...a,
-                        timestamp: a.timestamp instanceof Date ? a.timestamp : new Date(String(a.timestamp))
-                      }));
-
-                      const plotAlerts: WeatherAlert[] = polygons.flatMap((p) =>
-                        (p.notifications ?? []).map((n) => ({
-                          id: `plotnotif-${p.id}-${n.id}`,
-                          type: 'rain' as const, // map to allowed category
-                          severity: 'danger' as const,
-                          message: `${n.message} — ${p.name ?? 'Talhão'}`,
-                          timestamp: new Date(n.createdAt),
-                          // include meta if WeatherAlert accepts extras (cast to any to be safe)
-                          ...( { meta: { plotId: p.id } } as any )
-                        }))
-                      );
-
-                      const combined: WeatherAlert[] = [...parentAlertsNormalized, ...plotAlerts];
-
-                      const handleRemove = (id: string) => {
-                        if (id.startsWith('plotnotif-')) {
-                          // id format: plotnotif-<plotId>-<notifId>
-                          const parts = id.split('-');
-                          const plotId = parts[1];
-                          const notifId = parts.slice(2).join('-');
-                          const p = polygons.find((x) => x.id === plotId);
-                          if (!p) return;
-                          const remaining = (p.notifications ?? []).filter((n) => n.id !== notifId);
-                          try { updatePolygon(plotId, { notifications: remaining }); } catch {}
-                          return;
-                        }
-                        // fallback: delegate to parent
-                        try { onRemoveAlert(id); } catch {}
-                      };
-
-                      const handleClearAll = () => {
-                        // clear parent alerts
-                        try { onClearAlerts(); } catch {}
-                        // also clear notifications from all polygons (local)
-                        polygons.forEach((p) => {
-                          try { updatePolygon(p.id, { notifications: [] }); } catch {}
-                        });
-                      };
-
-                      return (
-                        <AlertsPanel
-                          alerts={combined}
-                          onRemoveAlert={handleRemove}
-                          onClearAll={handleClearAll}
-                        />
-                      );
-                    })()}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="settings" className="h-full m-0">
                   <div className="h-full overflow-y-auto hide-scrollbar p-4 space-y-4">
-                    <IntervalSelector
-                      interval={interval}
-                      onIntervalChange={onIntervalChange}
-                      onRefresh={onRefresh}
-                      isPolling={isPolling}
-                    />
-                    <LayerToggle
-                      layers={layers}
-                      onLayerChange={onLayerChange}
-                      showHeatmap={showHeatmap}
-                      onHeatmapChange={onHeatmapChange}
-                    />
-
-                    {/* Plot drawer + coordinate import — kept inside settings as before */}
+                    {/* Plot drawer - first section */}
                     <div className="p-4 bg-muted/50 border rounded-md">
                       <PlotDrawer
                         isDrawing={isDrawingPlot}
@@ -401,104 +307,297 @@ export default function Sidebar({
                         onSavePlot={handleOpenSaveForm}
                         pointsCount={plotPointsCount}
                       />
-
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium mb-2">Demarcar por coordenadas</h4>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Cole um array JSON de coordenadas [lon, lat] (ex: [[-63.9,-8.76], [-63.91,-8.76], ...])
-                        </p>
-                        <CoordsAreaCalculator onImport={onImportPlotPoints} />
-                        <div className="mt-3">
-                          <LocationSearch onGoTo={onGoToLocation} />
-                        </div>
-                      </div>
                     </div>
 
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium mb-2">Talhões Salvos</h4>
-                      <div className="space-y-2 max-h-44 overflow-auto pr-2">
-                        {polygons.length === 0 ? (
-                          <div className="text-xs text-muted-foreground">Nenhum talhão salvo ainda.</div>
-                        ) : (
-                          polygons.map((p) => (
-                            <div key={p.id} className="p-2 border rounded-md bg-background/60 flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-semibold truncate">{p.name ?? 'Talhão'}</div>
-                                  {p.number !== undefined && (
-                                    <div className="text-xs text-muted-foreground ml-1">#{p.number}</div>
-                                  )}
+                    {/* Talhões Salvos - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowSavedPlots(!showSavedPlots)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Talhões Salvos {polygons.length > 0 && `(${polygons.length})`}</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showSavedPlots ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showSavedPlots && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="space-y-2 max-h-52 overflow-auto pr-2">
+                              {polygons.length === 0 ? (
+                                <div className="text-xs text-muted-foreground p-3 text-center bg-muted/30 rounded-lg">
+                                  Nenhum talhão salvo ainda.
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {p.area_m2.toFixed(2)} m² · {(p.area_m2 / 10000).toFixed(4)} ha
-                                </div>
+                              ) : (
+                                polygons.map((p) => (
+                                  <div key={p.id} className="p-3 border border-primary/20 rounded-lg bg-gradient-to-br from-primary/5 to-primary/0 hover:border-primary/40 transition-all">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div 
+                                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: p.color || '#10b981' }}
+                                          ></div>
+                                          <div className="text-sm font-semibold truncate text-foreground">{p.name ?? 'Talhão'}</div>
+                                          {p.number !== undefined && (
+                                            <div className="text-xs text-muted-foreground">#{p.number}</div>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground ml-3">
+                                          {p.area_m2.toFixed(2)} m² · {(p.area_m2 / 10000).toFixed(4)} ha
+                                        </div>
+                                        
+                                        <div className="text-xs text-muted-foreground ml-3 mt-1">
+                                          📍 {p.centroid.lat.toFixed(4)}°, {p.centroid.lon.toFixed(4)}°
+                                        </div>
 
-                                {/* first notification preview */}
-                                {p.notifications && p.notifications.length > 0 && (
-                                  <div className="mt-2 text-xs flex items-center gap-2 text-muted-foreground">
-                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                      <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6 6 0 1 0-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                                      <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    <div className="truncate">{p.notifications[0].message}</div>
+                                        {/* first notification preview */}
+                                        {p.notifications && p.notifications.length > 0 && (
+                                          <div className="mt-2 text-xs flex items-center gap-2 text-amber-600 dark:text-amber-400 ml-3">
+                                            <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                              <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6 6 0 1 0-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                                              <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                            <div className="truncate">{p.notifications[0].message}</div>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                        <button
+                                          className="px-2 py-1 text-xs rounded-md bg-primary/20 text-primary hover:bg-primary/30 transition-colors font-medium"
+                                          onClick={() => {
+                                            const w = window as any;
+                                            // ensure plot is rendered / popup shown
+                                            try { if (typeof w.__showSavedPlot === 'function') w.__showSavedPlot(p); } catch {}
+
+                                            // Update parent/map state: request parent to fetch/update weather for this plot
+                                            if (typeof onGoToLocation === 'function') {
+                                              try { onGoToLocation(p.centroid.lat, p.centroid.lon, p.id); } catch {}
+                                            }
+
+                                            // try typical flyTo helpers (try different argument orders)
+                                            try {
+                                              if (typeof w.__mapFlyTo === 'function') {
+                                                // common signature: (lat, lon)
+                                                w.__mapFlyTo(p.centroid.lat, p.centroid.lon);
+                                              } else if (typeof w.__mapFlyToLonLat === 'function') {
+                                                // alternative: (lon, lat)
+                                                w.__mapFlyToLonLat(p.centroid.lon, p.centroid.lat);
+                                              } else if (typeof w.__mapFlyToLngLat === 'function') {
+                                                w.__mapFlyToLngLat([p.centroid.lon, p.centroid.lat]);
+                                              }
+                                            } catch (err) { /* ignore */ }
+
+                                            // dispatch a generic event so MapView can listen and flyTo if it prefers event-driven control
+                                            try {
+                                              window.dispatchEvent(new CustomEvent('semagric:flyToPlot', { detail: { lat: p.centroid.lat, lon: p.centroid.lon, id: p.id } }));
+                                            } catch (e) { /* ignore */ }
+                                          }}
+                                        >
+                                          Ver
+                                        </button>
+
+                                        <button
+                                          className="px-2 py-1 text-xs rounded-md bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/30 transition-colors font-medium"
+                                          onClick={() => {
+                                            if (confirm('Remover talhão?')) {
+                                              try { removePolygon(p.id); } catch {}
+                                            }
+                                          }}
+                                        >
+                                          Remover
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-
-                              <div className="flex flex-col items-end gap-2">
-                                <button
-                                  className="px-2 py-1 text-xs rounded border"
-                                  onClick={() => {
-                                    const w = window as any;
-                                    // ensure plot is rendered / popup shown
-                                    try { if (typeof w.__showSavedPlot === 'function') w.__showSavedPlot(p); } catch {}
-
-                                    // Update parent/map state: request parent to fetch/update weather for this plot
-                                    if (typeof onGoToLocation === 'function') {
-                                      try { onGoToLocation(p.centroid.lat, p.centroid.lon, p.id); } catch {}
-                                    }
-
-                                    // try typical flyTo helpers (try different argument orders)
-                                    try {
-                                      if (typeof w.__mapFlyTo === 'function') {
-                                        // common signature: (lat, lon)
-                                        w.__mapFlyTo(p.centroid.lat, p.centroid.lon);
-                                      } else if (typeof w.__mapFlyToLonLat === 'function') {
-                                        // alternative: (lon, lat)
-                                        w.__mapFlyToLonLat(p.centroid.lon, p.centroid.lat);
-                                      } else if (typeof w.__mapFlyToLngLat === 'function') {
-                                        w.__mapFlyToLngLat([p.centroid.lon, p.centroid.lat]);
-                                      }
-                                    } catch (err) { /* ignore */ }
-
-                                    // dispatch a generic event so MapView can listen and flyTo if it prefers event-driven control
-                                    try {
-                                      window.dispatchEvent(new CustomEvent('semagric:flyToPlot', { detail: { lat: p.centroid.lat, lon: p.centroid.lon, id: p.id } }));
-                                    } catch (e) { /* ignore */ }
-                                  }}
-                                >
-                                  Mostrar
-                                </button>
-
-                                <button
-                                  className="px-2 py-1 text-xs rounded bg-rose-500 text-white"
-                                  onClick={() => {
-                                    if (confirm('Remover talhão?')) {
-                                      try { removePolygon(p.id); } catch {}
-                                    }
-                                  }}
-                                >
-                                  Remover
-                                </button>
-                              </div>
+                                ))
+                              )}
                             </div>
-                          ))
+                          </motion.div>
                         )}
-                      </div>
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Filtros de Visualização - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Filtros de Visualização</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showFilters && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            {sentinelFilters && onSentinelFilterChange && onSentinelOpacityChange && (
+                              <SentinelFilters
+                                filters={sentinelFilters}
+                                opacity={sentinelOpacity || {
+                                  satellite: 0.85,
+                                  ndvi: 0.75,
+                                  ndmi: 0.75,
+                                  ndbi: 0.75,
+                                  heatmap: 0.7
+                                }}
+                                onFilterChange={(filter, value) => {
+                                  onSentinelFilterChange(filter, value);
+                                }}
+                                onOpacityChange={(layer, value) => {
+                                  onSentinelOpacityChange(layer, value);
+                                }}
+                              />
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Intervalo de Atualização - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowInterval(!showInterval)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Intervalo de Atualização</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showInterval ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showInterval && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-4 bg-muted/50 border rounded-md">
+                              <IntervalSelector
+                                interval={interval}
+                                onIntervalChange={onIntervalChange}
+                                onRefresh={onRefresh}
+                                isPolling={isPolling}
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Índices de Sensoriamento - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowRemoteSensing(!showRemoteSensing)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Índices de Sensoriamento</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showRemoteSensing ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showRemoteSensing && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <RemoteSensingPanel
+                              data={remoteSensingData || null}
+                              loading={loading}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Sentinel-2 NDVI (Real Time) - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowSentinel2(!showSentinel2)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Sentinel-2 NDVI</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showSentinel2 ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showSentinel2 && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <Sentinel2Panel
+                              data={sentinel2Data || null}
+                              loading={loading}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Demarcar por coordenadas - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowCoordsInput(!showCoordsInput)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Demarcar por Coordenadas</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showCoordsInput ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showCoordsInput && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-4 bg-muted/50 border rounded-md">
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Cole um array JSON de coordenadas [lon, lat] (ex: [[-63.9,-8.76], [-63.91,-8.76], ...])
+                              </p>
+                              <CoordsAreaCalculator onImport={onImportPlotPoints} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Procurar localização - Button with Collapse */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setShowLocationSearch(!showLocationSearch)}
+                        className="w-full px-4 py-2 rounded-lg font-medium text-sm transition-all bg-primary text-white shadow-md hover:shadow-lg flex items-center justify-between"
+                      >
+                        <span>Procurar Localização</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform ${showLocationSearch ? 'rotate-90' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {showLocationSearch && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-4 bg-muted/50 border rounded-md">
+                              <LocationSearch onGoTo={onGoToLocation} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                   </div>
-                </TabsContent>
               </div>
             </Tabs>
 
@@ -716,6 +815,7 @@ function SavePlotModal({
   const [lat, setLat] = useState<string>('');
   const [lon, setLon] = useState<string>('');
   const [color, setColor] = useState<string>('#22c55e');
+  const [opacity, setOpacity] = useState<number>(0.45);
 
   useEffect(() => {
     if (!open) return;
@@ -732,7 +832,7 @@ function SavePlotModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative z-50 w-full max-w-md">
         <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-6 rounded-2xl shadow-xl border border-border">
@@ -750,7 +850,7 @@ function SavePlotModal({
             <div>
               <label className="block text-xs font-medium mb-1">Nome do talhão</label>
               <input
-                className="w-full p-2 text-sm rounded border border-border bg-white/60 dark:bg-slate-800 text-black"
+                className="w-full p-2 text-sm rounded border border-border bg-white/60 dark:bg-slate-800 text-black dark:text-white"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Nome do talhão"
@@ -762,7 +862,7 @@ function SavePlotModal({
                 <label className="block text-xs font-medium mb-1">Área (m²)</label>
                 <input
                   type="number"
-                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black"
+                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black dark:text-white"
                   value={area}
                   onChange={(e) => setArea(Number(e.target.value))}
                 />
@@ -788,11 +888,28 @@ function SavePlotModal({
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-medium mb-2">Opacidade: {(opacity * 100).toFixed(0)}%</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={opacity}
+                onChange={(e) => setOpacity(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>Transparente</span>
+                <span>Opaco</span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium mb-1">Latitude (centro)</label>
                 <input
-                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black"
+                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black dark:text-white"
                   value={lat}
                   onChange={(e) => setLat(e.target.value)}
                 />
@@ -800,7 +917,7 @@ function SavePlotModal({
               <div>
                 <label className="block text-xs font-medium mb-1">Longitude (centro)</label>
                 <input
-                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black"
+                  className="w-full p-2 rounded-md border border-border bg-white/60 dark:bg-slate-800 text-black dark:text-white"
                   value={lon}
                   onChange={(e) => setLon(e.target.value)}
                 />

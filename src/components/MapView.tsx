@@ -14,6 +14,20 @@ interface MapViewProps {
     temperature: boolean;
     clouds: boolean;
   };
+  sentinelFilters?: {
+    satellite: boolean;
+    ndvi: boolean;
+    ndmi: boolean;
+    ndbi: boolean;
+    heatmap: boolean;
+  };
+  sentinelOpacity?: {
+    satellite: number;
+    ndvi: number;
+    ndmi: number;
+    ndbi: number;
+    heatmap: number;
+  };
   isDrawingPlot?: boolean;
   onPlotPointsChange?: (points: [number, number][]) => void;
   plotPoints?: [number, number][];
@@ -25,6 +39,8 @@ export default function MapView({
   onLocationChange,
   showHeatmap = false,
   layers = { rain: false, wind: false, temperature: false, clouds: false },
+  sentinelFilters = { satellite: false, ndvi: false, ndmi: false, ndbi: false, heatmap: false },
+  sentinelOpacity = { satellite: 0.85, ndvi: 0.75, ndmi: 0.75, ndbi: 0.75, heatmap: 0.7 },
   isDrawingPlot = false,
   onPlotPointsChange,
   plotPoints = [],
@@ -70,6 +86,46 @@ useEffect(() => {
             ],
             tileSize: 256,
             attribution: '© OpenStreetMap contributors'
+          },
+          'sentinel2-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://sh.dataspace.copernicus.eu/api/v1/wms?request=GetMap&service=WMS&version=1.3.0&layers=SENTINEL2_L2A.TCI_10m&format=image/png&srs=EPSG:3857&width=512&height=512&bbox={bbox-epsg-3857}'
+            ],
+            tileSize: 512,
+            attribution: '© Copernicus Sentinel-2'
+          },
+          'ndvi-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://sh.dataspace.copernicus.eu/api/v1/wms?request=GetMap&service=WMS&version=1.3.0&layers=SENTINEL2_L2A.NDVI&format=image/png&srs=EPSG:3857&width=512&height=512&colormap=viridis&bbox={bbox-epsg-3857}'
+            ],
+            tileSize: 512,
+            attribution: '© Copernicus Sentinel-2 NDVI'
+          },
+          'ndmi-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256,
+            attribution: '© Esri World Imagery'
+          },
+          'ndbi-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+            ],
+            tileSize: 256,
+            attribution: '© Google Satellite'
+          },
+          'heatmap-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '© Stadia Maps'
           }
         },
         layers: [
@@ -79,6 +135,56 @@ useEffect(() => {
             source: 'osm-tiles',
             minzoom: 0,
             maxzoom: 19
+          },
+          {
+            id: 'sentinel2-layer',
+            type: 'raster',
+            source: 'sentinel2-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-opacity': 0
+            }
+          },
+          {
+            id: 'ndvi-layer',
+            type: 'raster',
+            source: 'ndvi-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-opacity': 0
+            }
+          },
+          {
+            id: 'ndmi-layer',
+            type: 'raster',
+            source: 'ndmi-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-opacity': 0
+            }
+          },
+          {
+            id: 'ndbi-layer',
+            type: 'raster',
+            source: 'ndbi-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-opacity': 0
+            }
+          },
+          {
+            id: 'heatmap-layer',
+            type: 'raster',
+            source: 'heatmap-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-opacity': 0
+            }
           }
         ]
       },
@@ -168,44 +274,17 @@ useEffect(() => {
     };
   }, []);
 
-  // Update marker
+  // Update marker (removed - no marker display needed)
   useEffect(() => {
     if (!map.current || !weather) return;
 
+    // Remove existing marker if any
     if (marker.current) {
       marker.current.remove();
+      marker.current = null;
     }
 
-    const el = document.createElement('div');
-    el.className = 'weather-marker';
-    el.style.cssText = `
-      width: 40px;
-      height: 40px;
-      background: hsl(var(--primary));
-      border: 3px solid white;
-      border-radius: 50%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      transition: transform 0.2s;
-    `;
-    // Remove visible number/text from the marker:
-    el.textContent = '';
-    // If you still want a tooltip on hover, set title instead:
-    // el.setAttribute('title', `${Math.round(weather.temperature)}°`);
-
-    el.onmouseenter = () => el.style.transform = 'scale(1.1)';
-    el.onmouseleave = () => el.style.transform = 'scale(1)';
-
-    marker.current = new maplibregl.Marker({ element: el })
-      .setLngLat([weather.location.lon, weather.location.lat])
-      .addTo(map.current);
-
+    // Only fly to location without showing marker
     map.current.flyTo({
       center: [weather.location.lon, weather.location.lat],
       zoom: 13,
@@ -330,7 +409,7 @@ useEffect(() => {
         border: 2px solid white;
         border-radius: 50%;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        cursor: pointer;
+        cursor: grab;
         z-index: 1000;
         display: block;
       `;
@@ -346,9 +425,30 @@ useEffect(() => {
       el.style.fontSize = '0px';
       el.style.lineHeight = '0';
 
-      const m = new maplibregl.Marker({ element: el, anchor: 'center' })
+      const m = new maplibregl.Marker({ element: el, anchor: 'center', draggable: true })
         .setLngLat(point)
         .addTo(map.current!);
+
+      // Add drag end listener to update the point
+      m.on('dragend', () => {
+        const newLngLat = m.getLngLat();
+        const newPoints = plotPoints.map((p, i) => 
+          i === index ? [newLngLat.lng, newLngLat.lat] as [number, number] : p
+        );
+        if (onPlotPointsChangeRef.current) {
+          onPlotPointsChangeRef.current(newPoints);
+        }
+      });
+
+      // Change cursor style on drag
+      m.on('dragstart', () => {
+        el.style.cursor = 'grabbing';
+      });
+
+      m.on('dragend', () => {
+        el.style.cursor = 'grab';
+      });
+
       plotMarkersRef.current.push(m);
     });
   }, [plotPoints, mapLoaded]);
@@ -873,12 +973,13 @@ useEffect(() => {
               background: rgba(8,10,14,0.9); color:#e6eef8; box-shadow: 0 6px 18px rgba(2,6,23,0.6);
             }
             .dark .sg-popup-row, .dark .sg-popup-notif{ color:#cbd5e1; }
+            .dark .sg-popup-row .value{ color:#f1f5f9; } /* bright color for values in dark mode */
             .dark .sg-popup-notif-text{ color:#fde68a; } /* lighter amber on dark */
             .dark .sg-popup-badge{ background: rgba(255,255,255,0.03); color:#e6eef8; }
           </style>
         `;
         // pass a wrapper classname so CSS above targets the library DOM structure
-        new maplibregl.Popup({ offset: [0, -12], closeButton: true, className: 'sg-popup-wrapper' })
+        new maplibregl.Popup({ offset: [0, -12], closeButton: true, closeOnClick: false, className: 'sg-popup-wrapper' })
           .setLngLat([p.centroid.lon, p.centroid.lat])
           .setHTML(popupHtml)
           .addTo(map.current);
@@ -951,6 +1052,52 @@ useEffect(() => {
     window.addEventListener('semagric:flyToPlot', handler);
     return () => window.removeEventListener('semagric:flyToPlot', handler);
   }, []);
+
+  // Control sentinel2 layers based on sentinelFilters and sentinelOpacity props
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    console.log('Updating sentinel layers:', { sentinelFilters, sentinelOpacity });
+
+    // Define layer configurations: [layerId, enabled, opacity]
+    const layerConfigs = [
+      ['sentinel2-layer', sentinelFilters.satellite, sentinelOpacity.satellite],
+      ['ndvi-layer', sentinelFilters.ndvi, sentinelOpacity.ndvi],
+      ['ndmi-layer', sentinelFilters.ndmi, sentinelOpacity.ndmi],
+      ['ndbi-layer', sentinelFilters.ndbi, sentinelOpacity.ndbi],
+      ['heatmap-layer', sentinelFilters.heatmap, sentinelOpacity.heatmap]
+    ] as const;
+
+    layerConfigs.forEach(([layerId, isEnabled, opacity]) => {
+      try {
+        const layer = map.current?.getLayer(layerId);
+        if (!layer) {
+          console.debug(`Layer ${layerId} not found on map`);
+          return;
+        }
+        
+        // Set visibility
+        map.current.setLayoutProperty(
+          layerId,
+          'visibility',
+          isEnabled ? 'visible' : 'none'
+        );
+
+        // Set opacity (0-1 range)
+        const normalizedOpacity = Math.max(0, Math.min(1, opacity));
+        map.current.setPaintProperty(
+          layerId,
+          'raster-opacity',
+          normalizedOpacity
+        );
+        
+        console.log(`Layer ${layerId}: visible=${isEnabled}, opacity=${normalizedOpacity}`);
+      } catch (e) {
+        // Layer might not exist yet, ignore
+        console.warn(`Error updating layer ${layerId}:`, e);
+      }
+    });
+  }, [sentinelFilters, sentinelOpacity, mapLoaded]);
 
   return (
     <div className="relative w-full h-full">
